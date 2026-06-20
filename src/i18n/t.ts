@@ -1,5 +1,8 @@
+import ja from "./ja.json";
 import en from "./en.json";
 import zhCN from "./zh-CN.json";
+
+import { settings } from "../settings";
 
 /**
  * Path of an object joined by dots.
@@ -11,9 +14,11 @@ import zhCN from "./zh-CN.json";
  * ```
  */
 export type PathOf<O> = keyof {
-  [P in keyof O & (string | number) as O[P] extends string ? P
-  : O[P] extends readonly string[] ? P
-  : `${P}.${PathOf<O[P]>}`]: void;
+  [P in keyof O & (string | number) as O[P] extends string
+    ? P
+    : O[P] extends readonly string[]
+      ? P
+      : `${P}.${PathOf<O[P]>}`]: void;
 };
 
 interface LocaleMap {
@@ -84,22 +89,25 @@ export const t = Object.assign(
         return path;
       }
     },
-  },
+  }
 );
 const _t = (path: string): string => {
   const locale =
-    window._options.userLocale ||
-    window._options.appLocale ||
-    navigator.languages[0] ||
-    navigator.language ||
-    ("userLanguage" in navigator &&
-      typeof navigator.userLanguage === "string" &&
-      navigator.userLanguage) ||
-    "en";
+    settings.language !== "auto"
+      ? settings.language
+      : window._options.userLocale ||
+        window._options.appLocale ||
+        navigator.languages[0] ||
+        navigator.language ||
+        ("userLanguage" in navigator &&
+          typeof navigator.userLanguage === "string" &&
+          navigator.userLanguage) ||
+        "en";
   const keys = path.split(".").filter(Boolean);
   const localeMap: LocaleMap = (() => {
-    if (locale === "en" || locale.startsWith("en-")) return en;
+    if (locale === "ja" || locale.startsWith("ja-")) return ja;
     if (locale === "zh-CN" || locale === "zh-Hans") return zhCN;
+    if (locale === "en" || locale.startsWith("en-")) return en;
     return en;
   })();
   let tmp = localeMap;
@@ -110,25 +118,28 @@ const _t = (path: string): string => {
     if (x === undefined)
       throw new TranslationError(
         `Cannot find translation for "${path}": "${key}" not found` +
-          (visitedKeys.length > 0 ? ` in "${visitedKeys.join(".")}".` : "."),
+          (visitedKeys.length > 0 ? ` in "${visitedKeys.join(".")}".` : ".")
       );
     if (typeof x === "string" || isStringArray(x))
       throw new TranslationError(
-        `Cannot find translation for "${path}": "${[...visitedKeys, key].join(".")}" is not an object.`,
+        `Cannot find translation for "${path}": "${[...visitedKeys, key].join(".")}" is not an object.`
       );
     tmp = x;
     visitedKeys.push(key);
   }
   const lastKey = keys.at(-1);
-  if (lastKey === undefined) throw new TranslationError("Empty path is not allowed.");
+  if (lastKey === undefined)
+    throw new TranslationError("Empty path is not allowed.");
   const res = tmp[lastKey];
   if (res === undefined)
     throw new TranslationError(
       `Cannot find translation for "${path}": "${lastKey}" not found` +
-        (visitedKeys.length > 0 ? ` in "${visitedKeys.join(".")}".` : "."),
+        (visitedKeys.length > 0 ? ` in "${visitedKeys.join(".")}".` : ".")
     );
   if (typeof res !== "string" && !isStringArray(res))
-    throw new TranslationError(`Cannot find translation for "${path}": "${path}" is not a string.`);
+    throw new TranslationError(
+      `Cannot find translation for "${path}": "${path}" is not a string.`
+    );
   return typeof res === "string" ? res : res.join("\n");
 };
 
@@ -144,5 +155,5 @@ const _t = (path: string): string => {
  */
 export const pathOf = <O extends LocaleMap>(o: O): PathOf<O>[] =>
   Object.entries(o).flatMap(([k, v]) =>
-    typeof v === "string" ? [k] : pathOf(v as never).map((x) => `${k}.${x}`),
+    typeof v === "string" ? [k] : pathOf(v as never).map((x) => `${k}.${x}`)
   ) as unknown as PathOf<O>[];

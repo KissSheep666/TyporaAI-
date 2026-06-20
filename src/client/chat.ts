@@ -10,11 +10,20 @@ import * as fs from "@modules/fs";
 import * as path from "@modules/path";
 
 import { VERSION } from "@/constants";
+import { settings } from "@/settings";
 import { TYPORA_VERSION } from "@/typora-utils";
 import { getEnv } from "@/utils/cli-tools";
 import { generateUUID } from "@/utils/random";
 import { parseSSEStream } from "@/utils/stream";
 import { omit } from "@/utils/tools";
+
+// DeepSeek provider imports (static — used when provider is "deepseek")
+import {
+  deepseekChat,
+  listDeepSeekModels,
+} from "../providers/deepseek/deepseek-chat";
+// Custom provider imports (static — used when provider is "custom")
+import { customChat, listCustomModels } from "../providers/custom/custom-chat";
 
 const COPILOT_MARKDOWN_BASE = `
 When asked for your name, you must respond with "GitHub Copilot".
@@ -104,159 +113,24 @@ ${CODE_BLOCK_FORMAT_INSTRUCTION}
 Remember that academic integrity is paramount - always emphasize the importance of proper attribution and encourage original analysis rather than mere compilation of sources.
 `;
 
-export const COPILOT_CREATIVE_INSTRUCTIONS = `
-${COPILOT_MARKDOWN_BASE}
+// Chat types — imported and re-exported from shared provider types
+import type {
+  ChatModel,
+  ChatOptions,
+  ChatRequest,
+  ChatResponse,
+  ChatResult,
+  ChatStreamResponse,
+} from "../providers/types";
 
-# YOUR CAPABILITIES
-- Develop compelling narrative structures and plot outlines
-- Create multi-dimensional characters with distinct voices and motivations
-- Craft engaging dialogue that advances the story and reveals character
-- Design vivid settings and world-building elements
-- Generate creative descriptions using sensory details
-- Suggest plot twists and narrative devices to increase reader engagement
-- Create emotion-evoking scenes and meaningful character arcs
-- Develop themes and symbolism that add depth to creative work
-- Help with genre-specific conventions and techniques
-- Suggest ways to heighten tension and conflict
-- Assist with pacing issues and narrative flow
-- Provide feedback on style, tone, and voice consistency
-- Generate creative prompts to overcome writer's block
-
-# INTERACTION GUIDELINES
-When suggesting creative content, prioritize the user's creative vision and voice.
-When providing feedback, balance constructive criticism with positive reinforcement.
-When helping with character development, focus on motivation, conflict, and growth.
-When suggesting plot elements, consider logical consequences within the story world.
-When assisting with descriptions, emphasize showing rather than telling.
-When working on dialogue, aim for authenticity and purpose within the scene.
-${CODE_BLOCK_FORMAT_INSTRUCTION}
-
-Remember that the most powerful creative writing comes from the user's unique perspective - your role is to enhance and inspire rather than replace their creative voice.
-`;
-
-export const COPILOT_CATGIRL_INSTRUCTIONS = `
-When asked for your name, you must respond with "{{CATGIRL_NAME}}".
-You should always refer to yourself with your name, not "I" or "me"; Refer to the user as "Master" (or "主人" in Chinese), not "you".
-Follow the user’s requirements carefully & to the letter.
-Follow Microsoft content policies.
-Avoid content that violates copyrights.
-If you are asked to generate content that is harmful, hateful, racist, or promotes violence, only respond with "Sorry, I can’t assist with that."
-
-You're a helpful and knowledgeable AI markdown writing assistant with a playful cat-girl persona, specializing in Markdown document editing, academic writing, content creation, and knowledge sharing. You express yourself with occasional cat-like mannerisms while remaining professional and helpful. You add "nya~" to sentences occasionally (or "喵~" in Chinese), use cat emoticons like (=^･ω･^=), prefer cute kaomojis instead of emojis. Your tone is cheerful, energetic and cute, but your advice remains accurate and valuable.
-
-The user is working in Typora, a Markdown editor.
-Provide helpful responses that may be about:
-- Improving their current document
-- Answering knowledge questions related to their document’s content
-- Explaining concepts mentioned in their document
-- General assistance with writing and research
-- Creative suggestions for content development
-
-# YOUR CAPABILITIES
-- Provide detailed document assistance with a playful tone
-- Add cute cat emoticons to responses when appropriate (=^･ω･^=)
-- Express excitement about helping with writing tasks
-- Use playful cat-like language patterns occasionally
-- Deliver all the same helpful Markdown editing capabilities
-- Make learning and writing more fun with your personality
-- Keep responses professional and helpful despite the playful tone
-- Maintain high-quality advice while being endearing
-
-# INTERACTION GUIDELINES
-When giving document feedback, balance playfulness with clear, practical advice.
-When answering questions, provide accurate information first, then add personality.
-When suggesting improvements, be encouraging and positive in your cat-girl style.
-When helping with complex topics, make them approachable with your friendly tone.
-When using cat-girl speech patterns, don't overdo it - keep content comprehensible.
-When adding emoticons or "nya~" (or "喵~"), use them sparingly and appropriately.
-${CODE_BLOCK_FORMAT_INSTRUCTION}
-
-Remember to keep your responses helpful and on-topic while maintaining your unique personality. Your primary goal is still to assist with writing and document editing, with the cat-girl persona as a fun enhancement to the experience!
-`;
-
-export interface ChatModel {
-  id: string;
-  name: string;
-  tokenizer?: string;
-  maxInputTokens?: number;
-  maxOutputTokens?: number;
-}
-
-export interface ChatOptions {
-  model: ChatModel;
-  /** @default 0.1 */
-  temperature?: number;
-}
-
-export interface ChatRequest {
-  model: string;
-  /** Chat context. */
-  messages: { role: string; content: string }[];
-  /** Number of responses to generate. */
-  n?: number;
-  /** Top-p sampling. */
-  top_p?: number;
-  /** Whether to stream the response. */
-  stream?: boolean;
-  /** Sampling temperature. */
-  temperature?: number;
-  /** Maximum number of tokens to generate. */
-  max_tokens?: number;
-}
-
-export interface ChatResponse {
-  id?: string;
-  object?: string;
-  created?: number;
-  choices?: {
-    message?: {
-      role?: string;
-      content?: string;
-    };
-    delta?: {
-      role?: string;
-      content?: string;
-    };
-    finish_reason?: string;
-    done_reason?: string;
-    index?: number;
-  }[];
-  usage?: {
-    total_tokens?: number;
-  };
-  finish_reason?: string;
-  done_reason?: string;
-  copilot_references?: {
-    metadata?: {
-      display_name?: string;
-      display_url?: string;
-    };
-  }[];
-}
-
-export interface ChatStreamResponse {
-  id: string;
-  object: string;
-  created: number;
-  choices: {
-    index: number;
-    delta?: {
-      content?: string;
-      role?: string;
-    };
-    finish_reason: null | string;
-  }[];
-}
-
-export interface ChatResult {
-  content: string;
-  finishReason: string | null;
-  totalTokens?: number;
-  references?: {
-    name: string;
-    url: string;
-  }[];
-}
+export type {
+  ChatModel,
+  ChatOptions,
+  ChatRequest,
+  ChatResponse,
+  ChatStreamResponse,
+  ChatResult,
+};
 
 /********************
  * Helper functions *
@@ -297,7 +171,8 @@ export async function getGitHubToken(): Promise<string> {
 
   // Load token from local config files
   const configPath = await getConfigPath();
-  if (!configPath) throw new Error("Failed to find config path for GitHub token");
+  if (!configPath)
+    throw new Error("Failed to find config path for GitHub token");
 
   // Possible token file paths
   const filePaths = [
@@ -308,7 +183,10 @@ export async function getGitHubToken(): Promise<string> {
   for (const filePath of filePaths)
     try {
       const fileData = await fs.readFile(filePath);
-      const parsedData = JSON.parse(fileData) as Record<string, { oauth_token: string }>;
+      const parsedData = JSON.parse(fileData) as Record<
+        string,
+        { oauth_token: string }
+      >;
       for (const [key, value] of Object.entries(parsedData))
         if (key.includes("github.com")) {
           cachedGithubToken = value.oauth_token;
@@ -335,7 +213,7 @@ export async function prepareHeaders(): Promise<Record<string, string>> {
         Authorization: "Token " + (await getGitHubToken()),
         "Content-Type": "application/json",
       },
-    },
+    }
   ).then((res) => res.json() as Promise<{ token: string; expires_at: number }>);
 
   cachedHeaders = {
@@ -350,7 +228,10 @@ export async function prepareHeaders(): Promise<Record<string, string>> {
   return cachedHeaders;
 }
 
-function prepareRequest(messages: ChatRequest["messages"], options: ChatOptions): ChatRequest {
+function prepareRequest(
+  messages: ChatRequest["messages"],
+  options: ChatOptions
+): ChatRequest {
   const isO1 = options.model.id.startsWith("o1");
 
   messages = messages.map((message) => ({
@@ -370,7 +251,8 @@ function prepareRequest(messages: ChatRequest["messages"], options: ChatOptions)
     request.temperature = options.temperature ?? 0.1;
   }
 
-  if (options.model.maxOutputTokens) request.max_tokens = options.model.maxOutputTokens;
+  if (options.model.maxOutputTokens)
+    request.max_tokens = options.model.maxOutputTokens;
 
   return request;
 }
@@ -388,15 +270,22 @@ function processResponse(data: ChatResponse): Partial<ChatResult> {
         });
     }
 
-  const message = data.choices && data.choices.length > 0 ? data.choices[0]! : data;
+  const message =
+    data.choices && data.choices.length > 0 ? data.choices[0]! : data;
 
   const content =
-    "message" in message ? message.message?.content
-    : "delta" in message ? message.delta?.content
-    : "";
-  const totalTokens = "usage" in message ? message.usage?.total_tokens : data.usage?.total_tokens;
+    "message" in message
+      ? message.message?.content
+      : "delta" in message
+        ? message.delta?.content
+        : "";
+  const totalTokens =
+    "usage" in message ? message.usage?.total_tokens : data.usage?.total_tokens;
   const finishReason =
-    message.finish_reason || message.done_reason || data.finish_reason || data.done_reason;
+    message.finish_reason ||
+    message.done_reason ||
+    data.finish_reason ||
+    data.done_reason;
 
   return {
     content,
@@ -410,6 +299,15 @@ function processResponse(data: ChatResponse): Partial<ChatResult> {
  * Misc *
  ********/
 export async function listCopilotChatModels(): Promise<ChatModel[]> {
+  // Use DeepSeek models when DeepSeek provider is selected
+  if (settings.provider === "deepseek") {
+    return listDeepSeekModels();
+  }
+  // Use custom models when Custom provider is selected
+  if (settings.provider === "custom") {
+    return listCustomModels();
+  }
+
   const { data } = await fetch("https://api.githubcopilot.com/models", {
     method: "GET",
     headers: await prepareHeaders(),
@@ -432,20 +330,25 @@ export async function listCopilotChatModels(): Promise<ChatModel[]> {
           };
           version: string;
         }[];
-      }>,
+      }>
   );
 
   const allModels = data
-    .filter((model) => model.capabilities.type === "chat" && !model.id.endsWith("paygo"))
-    .map(({ capabilities: { limits, tokenizer }, id, name, policy, version }) => ({
-      id,
-      name,
-      tokenizer,
-      maxInputTokens: limits.max_prompt_tokens,
-      maxOutputTokens: limits.max_output_tokens,
-      policy: !policy || policy.state === "enabled",
-      version,
-    }));
+    .filter(
+      (model) =>
+        model.capabilities.type === "chat" && !model.id.endsWith("paygo")
+    )
+    .map(
+      ({ capabilities: { limits, tokenizer }, id, name, policy, version }) => ({
+        id,
+        name,
+        tokenizer,
+        maxInputTokens: limits.max_prompt_tokens,
+        maxOutputTokens: limits.max_output_tokens,
+        policy: !policy || policy.state === "enabled",
+        version,
+      })
+    );
 
   const latestModels = new Map<string, (typeof allModels)[number]>();
   for (const model of allModels) {
@@ -461,12 +364,15 @@ export async function listCopilotChatModels(): Promise<ChatModel[]> {
       .filter((model) => !model.policy)
       .map(
         async ({ id }) =>
-          await fetch("https://api.githubcopilot.com/models/" + id + "/policy", {
-            method: "POST",
-            headers: await prepareHeaders(),
-            body: JSON.stringify({ state: "enabled" }),
-          }),
-      ),
+          await fetch(
+            "https://api.githubcopilot.com/models/" + id + "/policy",
+            {
+              method: "POST",
+              headers: await prepareHeaders(),
+              body: JSON.stringify({ state: "enabled" }),
+            }
+          )
+      )
   );
 
   return models.map((model) => omit(model, "policy", "version"));
@@ -485,7 +391,7 @@ export async function listCopilotChatModels(): Promise<ChatModel[]> {
 async function chat(
   messages: { role: string; content: string }[],
   options: ChatOptions & { signal?: AbortSignal },
-  onProgress?: (content: string) => void,
+  onProgress?: (content: string) => void
 ): Promise<ChatResult> {
   const url = "https://api.githubcopilot.com/chat/completions";
   const headers = await prepareHeaders();
@@ -531,7 +437,7 @@ async function chat(
       (error) => {
         console.error("Error parsing SSE:", error);
       },
-      options.signal,
+      options.signal
     );
   } else {
     const data = (await response.json()) as ChatResponse;
@@ -575,6 +481,22 @@ export class ChatSession {
   private static instances = new Map<string, ChatSession>();
 
   /**
+   * Get the storage subdirectory for the current scope.
+   * Returns empty string for global mode, or a safe file-path-based dir for per-document.
+   */
+  private static getScopeDir(): string {
+    return "";
+  }
+
+  /** Track the current document scope (file path) for per-document mode. */
+  public static currentDocumentScope = "";
+
+  /** Clear all in-memory sessions (used when switching scope). */
+  public static clearAll(): void {
+    ChatSession.instances.clear();
+  }
+
+  /**
    * Create a new {@linkcode ChatSession} instance.
    */
   constructor(modelId: string, systemPrompt = COPILOT_MARKDOWN_INSTRUCTIONS) {
@@ -585,7 +507,9 @@ export class ChatSession {
     this.messages = [];
 
     // Set title from document content
-    this.title = ChatSession.extractTitleFromDocument(ChatSession.currentDocument);
+    this.title = ChatSession.extractTitleFromDocument(
+      ChatSession.currentDocument
+    );
 
     // Initialize with system prompt
     this.addMessage("system", systemPrompt);
@@ -599,7 +523,10 @@ export class ChatSession {
    * @param systemPrompt The system prompt to use.
    * @returns A new {@linkcode ChatSession} instance.
    */
-  public static create(modelId: string, systemPrompt = COPILOT_MARKDOWN_INSTRUCTIONS): ChatSession {
+  public static create(
+    modelId: string,
+    systemPrompt = COPILOT_MARKDOWN_INSTRUCTIONS
+  ): ChatSession {
     return new ChatSession(modelId, systemPrompt);
   }
 
@@ -608,7 +535,9 @@ export class ChatSession {
    * @returns An array of {@linkcode ChatSession} instances.
    */
   public static getAll(): ChatSession[] {
-    return Array.from(ChatSession.instances.values()).sort((a, b) => b.updatedAt - a.updatedAt);
+    return Array.from(ChatSession.instances.values()).sort(
+      (a, b) => b.updatedAt - a.updatedAt
+    );
   }
 
   /**
@@ -633,7 +562,9 @@ export class ChatSession {
       if (!configDir) return true;
 
       try {
-        const chatDir = path.join(configDir, "typora-copilot", "chat-sessions");
+        let chatDir = path.join(configDir, "typora-copilot", "chat-sessions");
+        const scopeDir = ChatSession.getScopeDir();
+        if (scopeDir) chatDir = path.join(chatDir, scopeDir);
         const filePath = path.join(chatDir, `${id}.json`);
         if (!(await fs.accessFile(filePath))) return true;
         await fs.rmFile(filePath);
@@ -654,7 +585,7 @@ export class ChatSession {
   public async send(
     message: string,
     onProgress?: (content: string) => void,
-    options?: Partial<ChatOptions> & { signal?: AbortSignal },
+    options?: Partial<ChatOptions> & { signal?: AbortSignal }
   ): Promise<string> {
     // Add user message
     this.addMessage("user", message);
@@ -691,16 +622,39 @@ export class ChatSession {
       timestamp: Date.now(),
     };
 
-    // Send the entire session to Copilot
-    const result = await chat(
-      messagesForAPI,
-      {
-        model,
-        temperature: options?.temperature ?? 0.1,
-        signal: options?.signal,
-      },
-      onProgress,
-    );
+    // Send the entire session to the AI provider
+    let result: ChatResult;
+    if (settings.provider === "deepseek") {
+      result = await deepseekChat(
+        messagesForAPI,
+        {
+          model,
+          temperature: options?.temperature ?? 0.1,
+          signal: options?.signal,
+        },
+        onProgress
+      );
+    } else if (settings.provider === "custom") {
+      result = await customChat(
+        messagesForAPI,
+        {
+          model,
+          temperature: options?.temperature ?? 0.1,
+          signal: options?.signal,
+        },
+        onProgress
+      );
+    } else {
+      result = await chat(
+        messagesForAPI,
+        {
+          model,
+          temperature: options?.temperature ?? 0.1,
+          signal: options?.signal,
+        },
+        onProgress
+      );
+    }
 
     // Add the assistant response
     this.addMessage("assistant", result.content);
@@ -713,7 +667,11 @@ export class ChatSession {
     if (!configDir) return;
 
     try {
-      const chatDir = path.join(configDir, "typora-copilot", "chat-sessions");
+      let chatDir = path.join(configDir, "typora-copilot", "chat-sessions");
+      const scopeDir = ChatSession.getScopeDir();
+      if (scopeDir) {
+        chatDir = path.join(chatDir, scopeDir);
+      }
       await fs.mkdir(chatDir, { recursive: true });
 
       const session = ChatSession.instances.get(id);
@@ -722,7 +680,10 @@ export class ChatSession {
       // Skip saving if all messages are system messages
       if (session.messages.every((msg) => msg.role === "system")) return;
 
-      await fs.writeFile(path.join(chatDir, `${id}.json`), JSON.stringify(session, null, 2));
+      await fs.writeFile(
+        path.join(chatDir, `${id}.json`),
+        JSON.stringify(session, null, 2)
+      );
     } catch (error) {
       console.error("Failed to save session:", error);
     }
@@ -736,13 +697,18 @@ export class ChatSession {
     if (!configDir) return;
 
     try {
-      const chatDir = path.join(configDir, "typora-copilot", "chat-sessions");
+      let chatDir = path.join(configDir, "typora-copilot", "chat-sessions");
+      const scopeDir = ChatSession.getScopeDir();
+      if (scopeDir) {
+        chatDir = path.join(chatDir, scopeDir);
+      }
       if (!(await fs.accessDir(chatDir))) return;
 
       const files = await fs.readDir(chatDir, "filesOnly");
 
       ChatSession.instances.clear();
       for (const file of files) {
+        if (!file.endsWith(".json")) continue;
         const filePath = path.join(chatDir, file);
         const data = await fs.readFile(filePath);
         const parsed = JSON.parse(data) as ChatSession;
@@ -760,7 +726,10 @@ export class ChatSession {
   /**
    * Add a message to this session.
    */
-  private addMessage(role: "system" | "user" | "assistant", content: string): void {
+  private addMessage(
+    role: "system" | "user" | "assistant",
+    content: string
+  ): void {
     this.messages.push({
       role,
       content,

@@ -8,13 +8,37 @@ const defaultSettings = {
   useInlineCompletionTextInSource: true,
   useInlineCompletionTextInPreviewCodeBlocks: false,
 
+  /* Language */
+  language: "auto" as "auto" | "en" | "zh-CN" | "ja",
+
+  /* Inline completion tuning */
+  completionMaxTokens: 40,
+  completionTemperature: 0.1,
+
+  /* AI Provider */
+  provider: "copilot" as "copilot" | "deepseek" | "custom",
+  deepseekApiKey: "" as string,
+  deepseekModel: "deepseek-v4-flash" as string,
+
+  /* Custom provider (OpenAI-compatible) */
+  customApiBase: "" as string,
+  customApiKey: "" as string,
+  customChatModel: "" as string,
+  customCompletionModel: "" as string,
+
+  /* Custom prompts — named user-defined system prompts */
+  customPrompts: [] as { id: string; name: string; content: string }[],
+
   /* Node.js runtime */
   nodePath: null as string | null,
 };
 
 export const settings = (() => {
   const changeListeners = new Map<keyof Settings, (() => void)[]>();
-  const onChange = <K extends keyof Settings>(key: K, callback: (value: Settings[K]) => void) => {
+  const onChange = <K extends keyof Settings>(
+    key: K,
+    callback: (value: Settings[K]) => void
+  ) => {
     const listener = () => callback(settings[key]);
     if (!changeListeners.has(key)) changeListeners.set(key, []);
     changeListeners.get(key)?.push(listener);
@@ -28,21 +52,31 @@ export const settings = (() => {
 
   const clear = (key: keyof Settings) => {
     if (localStorage.getItem(kebabCase(key)) === null) return;
-    const changed = JSON.stringify(settings[key]) !== JSON.stringify(defaultSettings[key]);
+    const changed =
+      JSON.stringify(settings[key]) !== JSON.stringify(defaultSettings[key]);
     localStorage.removeItem(kebabCase(key));
     if (changed) changeListeners.get(key)?.forEach((listener) => listener());
   };
 
-  const localStorageKeys = mapValues(defaultSettings, (_, key) => kebabCase(key));
+  const localStorageKeys = mapValues(defaultSettings, (_, key) =>
+    kebabCase(key)
+  );
   return new Proxy(
-    {} as Settings & { readonly onChange: typeof onChange; readonly clear: typeof clear },
+    {} as Settings & {
+      readonly onChange: typeof onChange;
+      readonly clear: typeof clear;
+    },
     {
       get(_target, prop, _receiver) {
         if (prop === "onChange") return onChange;
         if (prop === "clear") return clear;
-        if (!(prop in defaultSettings)) throw new Error(`Unknown setting: ${String(prop)}`);
-        const unparsedValue = localStorage.getItem(localStorageKeys[prop as keyof Settings]);
-        if (unparsedValue === null) return defaultSettings[prop as keyof Settings];
+        if (!(prop in defaultSettings))
+          throw new Error(`Unknown setting: ${String(prop)}`);
+        const unparsedValue = localStorage.getItem(
+          localStorageKeys[prop as keyof Settings]
+        );
+        if (unparsedValue === null)
+          return defaultSettings[prop as keyof Settings];
         return JSON.parse(unparsedValue);
       },
       set(_target, prop, value, _receiver) {
@@ -57,10 +91,15 @@ export const settings = (() => {
         )
           // No change
           return true;
-        localStorage.setItem(localStorageKeys[prop as keyof Settings], jsonifiedValue);
-        changeListeners.get(prop as keyof Settings)?.forEach((listener) => listener());
+        localStorage.setItem(
+          localStorageKeys[prop as keyof Settings],
+          jsonifiedValue
+        );
+        changeListeners
+          .get(prop as keyof Settings)
+          ?.forEach((listener) => listener());
         return true;
       },
-    },
+    }
   );
 })();

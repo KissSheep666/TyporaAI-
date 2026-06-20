@@ -2,23 +2,26 @@
   "name": "typora-copilot",
   "version": "0.3.12",
   "private": true,
-  "description": "GitHub Copilot plugin for Typora",
+  "description": "GitHub Copilot, DeepSeek & custom OpenAI-compatible AI plugin for Typora — inline completions and chat",
   "keywords": [
     "Typora",
     "Copilot",
     "GitHub Copilot",
+    "DeepSeek",
     "AI",
     "code completion",
     "code suggestion",
-    "code generation"
+    "code generation",
+    "LLM",
+    "custom provider"
   ],
-  "homepage": "https://github.com/Snowflyt/typora-copilot",
+  "homepage": "https://github.com/KissSheep666/TyporaAI-",
   "bugs": {
-    "url": "https://github.com/Snowflyt/typora-copilot/issues"
+    "url": "https://github.com/KissSheep666/TyporaAI-/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Snowflyt/typora-copilot"
+    "url": "https://github.com/KissSheep666/TyporaAI-"
   },
   "license": "MIT",
   "author": "Snowflyt <gaoge011022@163.com>",
@@ -31,7 +34,7 @@
     "format": "prettier --no-error-on-unmatched-pattern --write {src,test}/**/*.{json,js,jsx,ts,tsx} *.{js,cjs,mjs,ts,cts,mts,json,md}",
     "lint": "eslint {src,test}/**/*.{js,jsx,ts,tsx} *.{js,cjs,mjs,ts,cts,mts} --no-error-on-unmatched-pattern --report-unused-disable-directives-severity error --max-warnings 0 && stylelint \"src/**/*.{css,scss}\"",
     "lint:fix": "eslint --fix {src,test}/**/*.{js,jsx,ts,tsx} *.{js,cjs,mjs,ts,cts,mts} --no-error-on-unmatched-pattern --report-unused-disable-directives-severity error --max-warnings 0 && stylelint --fix \"src/**/*.{css,scss}\"",
-    "prepare": "node -e \"import fs from 'node:fs'; import path from 'node:path'; const hooksDir = path.join(process.cwd(), '.githooks'); const gitHooksDir = path.join(process.cwd(), '.git/hooks'); if (fs.existsSync(gitHooksDir)) { fs.readdirSync(hooksDir).forEach(file => { const srcFile = path.join(hooksDir, file); const destFile = path.join(gitHooksDir, file); fs.copyFileSync(srcFile, destFile); if (process.platform !== 'win32' && !file.endsWith('.cmd')) { fs.chmodSync(destFile, 0o755); } }); }\"",
+    "prepare": "husky",
     "test": "vitest run",
     "test-types": "typroof",
     "test:cov": "vitest run --coverage",
@@ -83,8 +86,10 @@
     "eslint-plugin-sort-destructure-keys": "^2.0.0",
     "globals": "^17.0.0",
     "happy-dom": "^20.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "postcss": "^8.5.6",
-    "prettier": "^3.7.4",
+    "prettier": "^3.8.3",
     "prettier-plugin-packagejson": "^2.5.21",
     "replace-in-file": "^8.4.0",
     "rimraf": "^6.1.2",

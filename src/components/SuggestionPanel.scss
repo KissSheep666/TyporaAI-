@@ -1,12 +1,10 @@
-.suggestion-panel {
+.suggestion-ghost {
   position: absolute;
   z-index: 9999;
   pointer-events: none;
+  user-select: none;
+  color: rgba(128, 128, 128, 0.5);
+  font-style: italic;
   white-space: pre-wrap;
-  border: 1px solid #ccc;
-  display: flex;
-  flex-direction: column;
-  padding: 0.5em;
-  border-radius: 5px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 50%);
+  background: transparent;
 }

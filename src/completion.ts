@@ -3,8 +3,18 @@ import * as path from "@modules/path";
 import type { Completion, CompletionResult, CopilotClient } from "./client";
 import type { ResponsePromise } from "./client/general-client";
 import { logger } from "./logging";
+import { settings } from "./settings";
 import type { Position } from "./types/lsp";
 import { Observable } from "./utils/observable";
+
+// DeepSeek completion provider (static import)
+import { getDeepSeekCompletions } from "./providers/deepseek/deepseek-completion";
+// Custom provider completion
+import { getCustomCompletions } from "./providers/custom/custom-completion";
+
+/** Prevent repeated error dialogs in the same session. */
+let deepseekErrorShown = false;
+let customErrorShown = false;
 
 /**
  * Options for {@link CompletionTaskManager}.
@@ -12,6 +22,11 @@ import { Observable } from "./utils/observable";
 export interface CompletionTaskManagerOptions {
   workspaceFolder: string;
   activeFilePathname: string;
+  /**
+   * Callback to get the current document text.
+   * Required for DeepSeek provider (used in FIM API calls).
+   */
+  getDocumentText?: () => string;
 }
 
 /**
@@ -25,15 +40,20 @@ export default class CompletionTaskManager {
   private _state: "idle" | "requesting" | "pending" = "idle";
 
   private activeRequest:
-    | (ResponsePromise<CompletionResult> & { cleanup?: Observable<"accepted" | "rejected"> })
+    | (ResponsePromise<CompletionResult> & {
+        cleanup?: Observable<"accepted" | "rejected">;
+      })
     | null = null;
+
+  private _options: CompletionTaskManagerOptions;
 
   constructor(
     private copilot: CopilotClient,
-    options: CompletionTaskManagerOptions,
+    options: CompletionTaskManagerOptions
   ) {
     this.workspaceFolder = options.workspaceFolder;
     this.activeFilePathname = options.activeFilePathname;
+    this._options = options;
   }
 
   get state(): "idle" | "requesting" | "pending" {
@@ -64,8 +84,10 @@ export default class CompletionTaskManager {
        * - Triggered later by the class itself when a new task starts, or by external triggers
        *   (e.g., the user manually invoking `.next()` for cleanup).
        */
-      onCompletion?: (completion: Completion) => Observable<"accepted" | "rejected"> | void;
-    },
+      onCompletion?: (
+        completion: Completion
+      ) => Observable<"accepted" | "rejected"> | void;
+    }
   ): void {
     if (this.activeRequest) {
       if (this.activeRequest.status === "pending") this.activeRequest.cancel();
@@ -74,13 +96,245 @@ export default class CompletionTaskManager {
 
     this._state = "requesting";
 
+    // === DeepSeek provider: use FIM API directly ===
+    if (settings.provider === "deepseek") {
+      const documentText = this._options.getDocumentText?.() ?? "";
+
+      // Build a cancellable request wrapper with real HTTP abort
+      const abortController = new AbortController();
+      const requestId = Math.random().toString(36).slice(2);
+
+      const request = Object.assign(
+        getDeepSeekCompletions(
+          {
+            position,
+            languageId: "markdown",
+            path: this.activeFilePathname,
+            relativePath: this.workspaceFolder
+              ? path.relative(this.workspaceFolder, this.activeFilePathname)
+              : this.activeFilePathname,
+          },
+          documentText,
+          abortController.signal
+        ).then((result) => {
+          if (abortController.signal.aborted)
+            return {
+              cancellationReason: "cancelled" as const,
+              completions: [],
+            };
+          return result;
+        }),
+        {
+          status: "pending" as const,
+          id: requestId,
+          cancel: () => {
+            abortController.abort();
+          },
+        }
+      ) as ResponsePromise<CompletionResult>;
+
+      this.activeRequest = request;
+      if (this.copilot.status !== "InProgress")
+        this.copilot.status = "InProgress";
+
+      request
+        .then(({ cancellationReason, completions }) => {
+          if (this.activeRequest !== request) {
+            // A new task has started since this request was issued
+            return;
+          }
+
+          if (cancellationReason || completions.length === 0) {
+            if (this.copilot.status === "InProgress")
+              this.copilot.status = "Normal";
+            this._state = "idle";
+            return;
+          }
+
+          this._state = "pending";
+
+          const completion = completions[0]!;
+
+          const cleanup =
+            onCompletion?.(completion) ??
+            new Observable<"accepted" | "rejected">();
+          cleanup.subscribeOnce((acceptedOrRejected) => {
+            if (acceptedOrRejected === "accepted") {
+              logger.debug("Accepted completion");
+            } else {
+              logger.debug("Rejected completion", completion.uuid);
+            }
+            this._state = "idle";
+            if (this.activeRequest === request) {
+              if (this.copilot.status === "InProgress")
+                this.copilot.status = "Normal";
+              this.activeRequest = null;
+            }
+          });
+          this.activeRequest.cleanup = cleanup;
+        })
+        .catch((err) => {
+          if (this.activeRequest !== request) return;
+          logger.error("DeepSeek completion failed", err);
+
+          // Show a one-time dialog so the user knows the API is failing
+          if (!deepseekErrorShown) {
+            deepseekErrorShown = true;
+            const message = err instanceof Error ? err.message : String(err);
+            try {
+              if (
+                typeof Files !== "undefined" &&
+                Files.editor?.EditHelper?.showDialog
+              ) {
+                Files.editor.EditHelper.showDialog({
+                  title: "Typora Copilot: DeepSeek Completion Error",
+                  type: "error",
+                  html: /* html */ `
+                    <div style="text-align:center;margin-top:8px">
+                      <p>DeepSeek completion API request failed:</p>
+                      <p style="font-size:0.85em;opacity:0.7">${message.slice(0, 200)}</p>
+                      <p style="margin-top:12px;font-size:0.8em">
+                        Completions will be disabled for this session.<br />
+                        Check your API key and network in Settings.
+                      </p>
+                    </div>
+                  `,
+                  buttons: ["OK"],
+                });
+              }
+            } catch {
+              // dialog itself failed — nothing more we can do
+            }
+          }
+
+          if (this.copilot.status === "InProgress")
+            this.copilot.status = "Normal";
+          this._state = "idle";
+          this.activeRequest = null;
+        });
+      return;
+    }
+
+    // === Custom provider: use generic OpenAI-compatible API ===
+    if (settings.provider === "custom") {
+      const documentText = this._options.getDocumentText?.() ?? "";
+
+      const abortController = new AbortController();
+      const requestId = Math.random().toString(36).slice(2);
+
+      const request = Object.assign(
+        getCustomCompletions(
+          {
+            position,
+            languageId: "markdown",
+            path: this.activeFilePathname,
+            relativePath: this.workspaceFolder
+              ? path.relative(this.workspaceFolder, this.activeFilePathname)
+              : this.activeFilePathname,
+          },
+          documentText,
+          abortController.signal
+        ).then((result) => {
+          if (abortController.signal.aborted)
+            return {
+              cancellationReason: "cancelled" as const,
+              completions: [],
+            };
+          return result;
+        }),
+        {
+          status: "pending" as const,
+          id: requestId,
+          cancel: () => {
+            abortController.abort();
+          },
+        }
+      ) as ResponsePromise<CompletionResult>;
+
+      this.activeRequest = request;
+      if (this.copilot.status !== "InProgress")
+        this.copilot.status = "InProgress";
+
+      request
+        .then(({ cancellationReason, completions }) => {
+          if (this.activeRequest !== request) return;
+
+          if (cancellationReason || completions.length === 0) {
+            if (this.copilot.status === "InProgress")
+              this.copilot.status = "Normal";
+            this._state = "idle";
+            return;
+          }
+
+          this._state = "pending";
+
+          const completion = completions[0]!;
+          const cleanup =
+            onCompletion?.(completion) ??
+            new Observable<"accepted" | "rejected">();
+          cleanup.subscribeOnce((acceptedOrRejected) => {
+            if (acceptedOrRejected === "accepted") {
+              logger.debug("Accepted completion");
+            } else {
+              logger.debug("Rejected completion", completion.uuid);
+            }
+            this._state = "idle";
+            if (this.activeRequest === request) {
+              if (this.copilot.status === "InProgress")
+                this.copilot.status = "Normal";
+              this.activeRequest = null;
+            }
+          });
+          this.activeRequest.cleanup = cleanup;
+        })
+        .catch((err) => {
+          if (this.activeRequest !== request) return;
+          logger.error("Custom provider completion failed", err);
+
+          if (!customErrorShown) {
+            customErrorShown = true;
+            const message = err instanceof Error ? err.message : String(err);
+            try {
+              if (
+                typeof Files !== "undefined" &&
+                Files.editor?.EditHelper?.showDialog
+              ) {
+                Files.editor.EditHelper.showDialog({
+                  title: "Typora Copilot: Custom Provider Completion Error",
+                  type: "error",
+                  html: /* html */ `
+                    <div style="text-align:center;margin-top:8px">
+                      <p>Custom provider completion API request failed:</p>
+                      <p style="font-size:0.85em;opacity:0.7">${message.slice(0, 200)}</p>
+                      <p style="margin-top:12px;font-size:0.8em">
+                        Completions will be disabled for this session.<br />
+                        Check your API key, base URL and network in Settings.
+                      </p>
+                    </div>
+                  `,
+                  buttons: ["OK"],
+                });
+              }
+            } catch {
+              // dialog itself failed
+            }
+          }
+
+          if (this.copilot.status === "InProgress")
+            this.copilot.status = "Normal";
+          this._state = "idle";
+          this.activeRequest = null;
+        });
+      return;
+    }
+
+    // === Copilot provider: use LSP ===
     const request = this.copilot.request.getCompletions({
       position,
       languageId: "markdown",
       path: this.activeFilePathname,
-      relativePath:
-        this.workspaceFolder ?
-          path.relative(this.workspaceFolder, this.activeFilePathname)
+      relativePath: this.workspaceFolder
+        ? path.relative(this.workspaceFolder, this.activeFilePathname)
         : this.activeFilePathname,
     });
     this.activeRequest = request;
@@ -94,7 +348,8 @@ export default class CompletionTaskManager {
         }
 
         if (cancellationReason || completions.length === 0) {
-          if (this.copilot.status === "InProgress") this.copilot.status = "Normal";
+          if (this.copilot.status === "InProgress")
+            this.copilot.status = "Normal";
           this._state = "idle";
           return;
         }
@@ -103,13 +358,17 @@ export default class CompletionTaskManager {
 
         const completion = completions[0]!;
 
-        const cleanup = onCompletion?.(completion) ?? new Observable<"accepted" | "rejected">();
+        const cleanup =
+          onCompletion?.(completion) ??
+          new Observable<"accepted" | "rejected">();
         cleanup.subscribeOnce((acceptedOrRejected) => {
           if (acceptedOrRejected === "accepted") {
             this.copilot.notification.notifyAccepted({ uuid: completion.uuid });
             logger.debug("Accepted completion");
           } else {
-            this.copilot.notification.notifyRejected({ uuids: [completion.uuid] });
+            this.copilot.notification.notifyRejected({
+              uuids: [completion.uuid],
+            });
             logger.debug("Rejected completion", completion.uuid);
           }
           this._state = "idle";

@@ -13,7 +13,7 @@
   },
   "chat": {
     "you": "你",
-    "input-placeholder": "询问 Copilot",
+    "input-placeholder": "询问大模型",
     "button": {
       "send": "发送",
       "stop": "停止",
@@ -22,7 +22,7 @@
       "delete-session": "删除会话"
     },
     "welcome": {
-      "title": "询问 Copilot",
+      "title": "询问大模型",
       "subtitle": "获取写作、回答问题或生成文档创意的帮助"
     },
     "dialog": {
@@ -33,20 +33,35 @@
         ]
       },
       "delete-session": {
-        "title": "删除 Copilot 聊天会话",
+        "title": "删除聊天会话",
         "html": "<p>确定要删除会话“{{SESSION_TITLE}}”吗？</p>"
       }
     },
     "prompt-style": {
-      "tooltip": "设置 Prompt 风格",
+      "tooltip": "设置对话风格",
       "Normal": "正常",
       "Academic": "学术",
-      "Creative": "创意",
-      "CatGirl": "🐱 猫娘！",
-      "cat-girl-name": "喵喵"
+      "Custom": "自定义",
+      "custom-placeholder": "在此输入自定义系统提示词...",
+      "new-custom-prompt": "+ 新建风格",
+      "prompt-name-placeholder": "风格名称",
+      "prompt-content-placeholder": "在此输入系统提示词...",
+      "delete-prompt-confirm": "确定要删除风格\"{{NAME}}\"吗？",
+      "default-custom-name": "自定义风格",
+      "save-prompt": "保存",
+      "no-custom-prompts": "暂无自定义风格，在下方或聊天面板中创建。"
     },
     "pick-model": {
       "tooltip": "选择模型"
+    },
+    "models": {
+      "deepseek-v4-flash": "DeepSeek V4 Flash（快速）",
+      "deepseek-v4-pro": "DeepSeek V4 Pro（强大）",
+      "gpt-4o": "GPT-4o",
+      "gpt-4o-mini": "GPT-4o Mini",
+      "claude-3-5-sonnet": "Claude 3.5 Sonnet",
+      "llama-3-70b": "Llama 3 70B",
+      "qwen-2.5-72b": "Qwen 2.5 72B"
     }
   },
   "dialog": {
@@ -87,8 +102,8 @@
       ]
     },
     "signed-in": {
-      "title": "已登录 GitHub Copilot",
-      "html": ["<p>您已成功登录 Copilot。</p>", "<p>按“确定”继续。</p>"]
+      "title": "已登录",
+      "html": ["<p>您已成功登录。</p>", "<p>按\"确定\"继续。</p>"]
     },
     "sign-in-verification-failed": {
       "title": "GitHub Copilot 登录验证失败",
@@ -146,7 +161,7 @@
   },
   "footer": {
     "menu": {
-      "sign-in": "登录以认证 Copilot",
+      "sign-in": "登录以认证",
       "sign-out": "退出登录",
       "not-authorized": "你的 GitHub 账户尚未订阅 Copilot",
       "disable-completions": "禁用建议",
@@ -158,12 +173,18 @@
     "generated-by-copilot": "由 GitHub Copilot 生成"
   },
   "settings-panel": {
-    "title": "Copilot：设置",
+    "title": "大模型设置",
     "general": {
       "title": "通用设置",
+      "recommended-value": "推荐",
+      "reset-to-default": "重置",
+      "language": {
+        "label": "语言",
+        "description": "界面语言。Auto 跟随系统设置，手动选择后立即生效。"
+      },
       "disable-completions": {
         "label": "禁用建议",
-        "description": "在 Typora 中禁用 Copilot 生成的补全或建议"
+        "description": "在 Typora 中禁用大模型生成的补全或建议"
       },
       "use-inline-completion-text-in-source": {
         "label": "在源代码模式下使用内联补全文本（Beta）",
@@ -173,6 +194,18 @@
         "label": "在预览模式代码块中使用内联补全文本（Early alpha）",
         "description": "在预览模式的代码块中使用内联补全文本，而不是建议面板",
         "warning": "此功能仍处于早期阶段，很可能会损坏你的文档。请谨慎使用。"
+      },
+      "chat-scope": {
+        "label": "对话范围",
+        "description": "全局共享：所有文档共用一组对话。按文档隔离：每个文件有独立的对话历史。切换会清空当前对话。"
+      },
+      "completion-max-tokens": {
+        "label": "补全长度",
+        "description": "内联补全文本的最大 token 数。推荐 40，值越大补全越长，范围 10–200"
+      },
+      "completion-temperature": {
+        "label": "随机性",
+        "description": "补全文本的随机程度。推荐 0.1，0 最确定，值越大越多样，范围 0–2.0"
       }
     },
     "nodejs": {
@@ -194,6 +227,42 @@
           "warn-empty-select-or-input": "请选择或输入有效的 Node.js 路径",
           "warn-empty-input": "请输入有效的 Node.js 路径"
         }
+      }
+    },
+    "ai-provider": {
+      "title": "大模型",
+      "provider": {
+        "label": "大模型选择",
+        "description": "选择用于补全和聊天的服务商。可使用自己的 API Key 接入任意大模型。"
+      },
+      "deepseek-api-key": {
+        "label": "API Key",
+        "description": "在对应平台获取的 API Key。仅存储在本地，不会发送给第三方。"
+      },
+      "deepseek-model": {
+        "label": "模型名称",
+        "description": "输入模型名称。已知：deepseek-v4-flash（快速）、deepseek-v4-pro（强大）。",
+        "hint": "可手动输入任意模型名。"
+      },
+      "custom-api-base": {
+        "label": "API 地址",
+        "description": "大模型 API 基地址，例如 https://api.openai.com/v1"
+      },
+      "custom-api-key": {
+        "label": "API Key",
+        "description": "大模型的 API Key。仅存储在本地。"
+      },
+      "custom-chat-model": {
+        "label": "对话模型",
+        "description": "用于对话的模型名，例如 gpt-4o。"
+      },
+      "custom-completion-model": {
+        "label": "补全模型（可选）",
+        "description": "用于内联补全的模型。留空则使用对话模型。"
+      },
+      "custom-prompts": {
+        "label": "自定义对话风格",
+        "description": "创建命名的系统提示词。在聊天面板中选择对应的风格即可切换。"
       }
     }
   }

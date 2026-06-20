@@ -45,129 +45,148 @@ logger.info("Copilot plugin activated. Version:", VERSION);
 /**
  * Fake temporary workspace folder, only used when no folder is opened.
  */
-const FAKE_TEMP_WORKSPACE_FOLDER =
-  Files.isWin ?
-    "C:\\Users\\FakeUser\\FakeTyporaCopilotWorkspace"
+const FAKE_TEMP_WORKSPACE_FOLDER = Files.isWin
+  ? "C:\\Users\\FakeUser\\FakeTyporaCopilotWorkspace"
   : "/home/fakeuser/faketyporacopilotworkspace";
 const FAKE_TEMP_FILENAME = "typora-copilot-fake-markdown.md";
 
 Promise.defer(async () => {
-  const runtime = await new Promise<NodeRuntime>((resolve) => {
-    const start = Date.now();
-
-    const customNodePath = settings.nodePath;
-    const checkCustomRuntimePromise =
-      customNodePath ?
-        runCommand(`"${customNodePath}" -v`).then((output) => {
-          const version = output.trim();
-          if (!semverValid(version)) {
-            logger.warn(
-              `Failed to check version of custom Node.js path "${customNodePath}", fallback to auto detection`,
-            );
-            throw new Error("Custom runtime invalid");
-          }
-          const runtime = { path: customNodePath, version };
-          setCurrentNodeRuntime(runtime);
-          logger.info(
-            `Using custom Node.js runtime (v${version.replace(/^v/, "")}) at path` +
-              `"${customNodePath}" to start language server.`,
-          );
-          resolve(runtime);
-        })
-      : Promise.reject(new Error("No custom runtime"));
-
-    void detectAvailableNodeRuntimes({
-      onFirstResolved: (runtime) => {
-        const timeSpent = Date.now() - start;
-
-        checkCustomRuntimePromise.catch(() => {
-          setCurrentNodeRuntime(runtime);
-          logger.debug(`Resolved first Node.js runtime in ${timeSpent}ms:`, runtime);
-          logger.info(
-            "Detected " +
-              (runtime.path === "bundled" ? "bundled" : "available") +
-              ` Node.js (v${runtime.version.replace(/^v/, "")})` +
-              (runtime.path === "bundled" ? "" : ` at path "${runtime.path}"`) +
-              ", using it to start language server.",
-          );
-          resolve(runtime);
-        });
-      },
-    }).then((runtimes) => {
-      const timeSpent = Date.now() - start;
-      setAllAvailableNodeRuntimes(runtimes);
-
-      checkCustomRuntimePromise.catch(() => {
-        if (runtimes.length === 0) {
-          logger.error("No available Node.js runtime found");
-          if (Files.isMac)
-            void waitUntilEditorInitialized().then(() => {
-              Files.editor!.EditHelper.showDialog({
-                title: `Typora Copilot: ${t("dialog.warn-nodejs-above-20-required-on-macOS.title")}`,
-                type: "error",
-                html: /* html */ `
-                  <div style="text-align: center; margin-top: 8px;">
-                    ${t("dialog.warn-nodejs-above-20-required-on-macOS.html")}
-                  </div>
-                `,
-                buttons: [t("button.understand")],
-              });
-            });
-          else if (Files.isNode && semverLt(process.version, "20.0.0"))
-            void waitUntilEditorInitialized().then(() => {
-              Files.editor!.EditHelper.showDialog({
-                title: `Typora Copilot: ${t("dialog.warn-nodejs-above-20-required-for-typora-under-1-9.title")}`,
-                type: "error",
-                html: /* html */ `
-                  <div style="text-align: center; margin-top: 8px;">
-                    ${t("dialog.warn-nodejs-above-20-required-for-typora-under-1-9.html").replace(
-                      "{{TYPORA_VERSION}}",
-                      TYPORA_VERSION,
-                    )}
-                  </div>
-                `,
-                buttons: [t("button.understand")],
-              });
-            });
-          else if (Files.isNode && semverGte(TYPORA_VERSION, "1.10.0"))
-            void waitUntilEditorInitialized().then(() => {
-              Files.editor!.EditHelper.showDialog({
-                title: `Typora Copilot: ${t("dialog.warn-nodejs-above-20-required-for-typora-above-1-10.title")}`,
-                type: "error",
-                html: /* html */ `
-                  <div style="text-align: center; margin-top: 8px;">
-                    ${t("dialog.warn-nodejs-above-20-required-for-typora-above-1-10.html").replace(
-                      "{{TYPORA_VERSION}}",
-                      TYPORA_VERSION,
-                    )}
-                  </div>
-                `,
-                buttons: [t("button.understand")],
-              });
-            });
-
-          resolve({ path: "not found", version: "unknown" });
-        } else {
-          logger.debug(`Resolved all available Node.js runtimes in ${timeSpent}ms:`, runtimes);
-        }
-      });
-    });
-  });
-
-  const server =
-    runtime.path === "not found" ?
-      NodeServer.getMock()
-    : await NodeServer.start(
-        runtime.path,
-        path.join(PLUGIN_DIR, "language-server", "language-server.cjs"),
-      );
-  if (server.pid !== -1) logger.debug("Copilot LSP server started. PID:", server.pid);
-
   /**
    * Copilot LSP client.
+   * In DeepSeek mode, a mock client is used (no LSP server needed).
    */
-  const copilot = createCopilotClient(server, { logging: "debug" });
-  setGlobalVar("copilot", copilot);
+  let copilot: ReturnType<typeof createCopilotClient>;
+
+  if (settings.provider === "deepseek" || settings.provider === "custom") {
+    // === DeepSeek / Custom mode: skip LSP server, use HTTP API directly ===
+    logger.info(
+      `Using ${settings.provider} as AI provider, skipping Copilot LSP server.`
+    );
+    copilot = createCopilotClient(NodeServer.getMock(), { logging: "debug" });
+    copilot.status = "Normal";
+    setGlobalVar("copilot", copilot);
+  } else {
+    // === Copilot mode: start LSP server ===
+    const runtime = await new Promise<NodeRuntime>((resolve) => {
+      const start = Date.now();
+
+      const customNodePath = settings.nodePath;
+      const checkCustomRuntimePromise = customNodePath
+        ? runCommand(`"${customNodePath}" -v`).then((output) => {
+            const version = output.trim();
+            if (!semverValid(version)) {
+              logger.warn(
+                `Failed to check version of custom Node.js path "${customNodePath}", fallback to auto detection`
+              );
+              throw new Error("Custom runtime invalid");
+            }
+            const runtime = { path: customNodePath, version };
+            setCurrentNodeRuntime(runtime);
+            logger.info(
+              `Using custom Node.js runtime (v${version.replace(/^v/, "")}) at path` +
+                `"${customNodePath}" to start language server.`
+            );
+            resolve(runtime);
+          })
+        : Promise.reject(new Error("No custom runtime"));
+
+      void detectAvailableNodeRuntimes({
+        onFirstResolved: (runtime) => {
+          const timeSpent = Date.now() - start;
+
+          checkCustomRuntimePromise.catch(() => {
+            setCurrentNodeRuntime(runtime);
+            logger.debug(
+              `Resolved first Node.js runtime in ${timeSpent}ms:`,
+              runtime
+            );
+            logger.info(
+              "Detected " +
+                (runtime.path === "bundled" ? "bundled" : "available") +
+                ` Node.js (v${runtime.version.replace(/^v/, "")})` +
+                (runtime.path === "bundled"
+                  ? ""
+                  : ` at path "${runtime.path}"`) +
+                ", using it to start language server."
+            );
+            resolve(runtime);
+          });
+        },
+      }).then((runtimes) => {
+        const timeSpent = Date.now() - start;
+        setAllAvailableNodeRuntimes(runtimes);
+
+        checkCustomRuntimePromise.catch(() => {
+          if (runtimes.length === 0) {
+            logger.error("No available Node.js runtime found");
+            if (Files.isMac)
+              void waitUntilEditorInitialized().then(() => {
+                Files.editor!.EditHelper.showDialog({
+                  title: `Typora Copilot: ${t("dialog.warn-nodejs-above-20-required-on-macOS.title")}`,
+                  type: "error",
+                  html: /* html */ `
+                    <div style="text-align: center; margin-top: 8px;">
+                      ${t("dialog.warn-nodejs-above-20-required-on-macOS.html")}
+                    </div>
+                  `,
+                  buttons: [t("button.understand")],
+                });
+              });
+            else if (Files.isNode && semverLt(process.version, "20.0.0"))
+              void waitUntilEditorInitialized().then(() => {
+                Files.editor!.EditHelper.showDialog({
+                  title: `Typora Copilot: ${t("dialog.warn-nodejs-above-20-required-for-typora-under-1-9.title")}`,
+                  type: "error",
+                  html: /* html */ `
+                    <div style="text-align: center; margin-top: 8px;">
+                      ${t(
+                        "dialog.warn-nodejs-above-20-required-for-typora-under-1-9.html"
+                      ).replace("{{TYPORA_VERSION}}", TYPORA_VERSION)}
+                    </div>
+                  `,
+                  buttons: [t("button.understand")],
+                });
+              });
+            else if (Files.isNode && semverGte(TYPORA_VERSION, "1.10.0"))
+              void waitUntilEditorInitialized().then(() => {
+                Files.editor!.EditHelper.showDialog({
+                  title: `Typora Copilot: ${t("dialog.warn-nodejs-above-20-required-for-typora-above-1-10.title")}`,
+                  type: "error",
+                  html: /* html */ `
+                    <div style="text-align: center; margin-top: 8px;">
+                      ${t(
+                        "dialog.warn-nodejs-above-20-required-for-typora-above-1-10.html"
+                      ).replace("{{TYPORA_VERSION}}", TYPORA_VERSION)}
+                    </div>
+                  `,
+                  buttons: [t("button.understand")],
+                });
+              });
+
+            resolve({ path: "not found", version: "unknown" });
+          } else {
+            logger.debug(
+              `Resolved all available Node.js runtimes in ${timeSpent}ms:`,
+              runtimes
+            );
+          }
+        });
+      });
+    });
+
+    const server =
+      runtime.path === "not found"
+        ? NodeServer.getMock()
+        : await NodeServer.start(
+            runtime.path,
+            path.join(PLUGIN_DIR, "language-server", "language-server.cjs")
+          );
+    if (server.pid !== -1)
+      logger.debug("Copilot LSP server started. PID:", server.pid);
+
+    copilot = createCopilotClient(server, { logging: "debug" });
+    setGlobalVar("copilot", copilot);
+  }
 
   await waitUntilEditorInitialized();
 
@@ -181,7 +200,7 @@ Promise.defer(async () => {
    */
   const insertCompletionTextToEditor = (
     caretPosition: Position,
-    completion: Completion,
+    completion: Completion
   ): Observable<"accepted" | "rejected"> | void => {
     const { position, range } = completion;
     let { displayText, text } = completion;
@@ -190,7 +209,11 @@ Promise.defer(async () => {
     if (!activeElement) return;
 
     // When in input, do not insert completion text
-    if ("INPUT" === activeElement.tagName || activeElement.classList.contains("ty-input")) return;
+    if (
+      "INPUT" === activeElement.tagName ||
+      activeElement.classList.contains("ty-input")
+    )
+      return;
 
     // When not in writer, do not insert completion text
     if ("BODY" === activeElement.tagName) return;
@@ -204,12 +227,16 @@ Promise.defer(async () => {
 
       const startPos = { ...caretPosition };
       startPos.line -=
-        cm.getValue(Files.useCRLF ? "\r\n" : "\n").split(Files.useCRLF ? "\r\n" : "\n").length - 1;
+        cm
+          .getValue(Files.useCRLF ? "\r\n" : "\n")
+          .split(Files.useCRLF ? "\r\n" : "\n").length - 1;
       startPos.character -= cm.getCursor().ch;
       if (startPos.character < 0) startPos.character = 0;
 
       // Get starter of CodeMirror to determine whether it is a code block, formula, etc.
-      const cmStarter = state.markdown.split(Files.useCRLF ? "\r\n" : "\n")[startPos.line - 1];
+      const cmStarter = state.markdown.split(Files.useCRLF ? "\r\n" : "\n")[
+        startPos.line - 1
+      ];
 
       if (cmStarter) {
         const cmElement = cm.getWrapperElement();
@@ -232,9 +259,12 @@ Promise.defer(async () => {
             text = text.slice(0, indexOfEnder);
             const textAfterEnder = text.slice(indexOfEnder);
             // Reduce `range` to only include text before ender
-            const rows = textAfterEnder.split(Files.useCRLF ? "\r\n" : "\n").length - 1;
+            const rows =
+              textAfterEnder.split(Files.useCRLF ? "\r\n" : "\n").length - 1;
             range.end.line -= rows;
-            range.end.character = textAfterEnder.split(Files.useCRLF ? "\r\n" : "\n").pop()!.length;
+            range.end.character = textAfterEnder
+              .split(Files.useCRLF ? "\r\n" : "\n")
+              .pop()!.length;
           }
         }
         // * Math block *
@@ -250,9 +280,12 @@ Promise.defer(async () => {
             text = text.slice(0, indexOfEnder);
             const textAfterEnder = text.slice(indexOfEnder);
             // Reduce `range` to only include text before ender
-            const rows = textAfterEnder.split(Files.useCRLF ? "\r\n" : "\n").length - 1;
+            const rows =
+              textAfterEnder.split(Files.useCRLF ? "\r\n" : "\n").length - 1;
             range.end.line -= rows;
-            range.end.character = textAfterEnder.split(Files.useCRLF ? "\r\n" : "\n").pop()!.length;
+            range.end.character = textAfterEnder
+              .split(Files.useCRLF ? "\r\n" : "\n")
+              .pop()!.length;
           }
         }
 
@@ -302,9 +335,11 @@ Promise.defer(async () => {
         state.markdown,
         range,
         completion.text,
-        Files.useCRLF ? "\r\n" : "\n",
+        Files.useCRLF ? "\r\n" : "\n"
       );
-      const diffs = diff(state.markdown, newMarkdown).filter((part) => part[0] !== diff.EQUAL);
+      const diffs = diff(state.markdown, newMarkdown).filter(
+        (part) => part[0] !== diff.EQUAL
+      );
 
       if (diffs.length === 1 && diffs[0]![0] === diff.INSERT) {
         editor.insertText(diffs[0]![1]);
@@ -315,7 +350,7 @@ Promise.defer(async () => {
         cm.replaceRange(
           text,
           { line: range.start.line, ch: range.start.character },
-          { line: range.end.line, ch: range.end.character },
+          { line: range.end.line, ch: range.end.character }
         );
         const newMarkdown = cm.getValue(Files.useCRLF ? "\r\n" : "\n");
         const cursorPos = Object.assign(cm.getCursor(), {
@@ -369,7 +404,7 @@ Promise.defer(async () => {
    */
   const insertCompletionTextToCodeMirror = (
     cm: CodeMirror.Editor,
-    { displayText, position, range, text, uuid }: Completion,
+    { displayText, position, range, text, uuid }: Completion
   ): Observable<"accepted" | "rejected"> | void => {
     interface CodeMirrorHistory {
       done: readonly object[];
@@ -378,14 +413,20 @@ Promise.defer(async () => {
 
     const cloneHistory = (history: CodeMirrorHistory): CodeMirrorHistory => ({
       done: history.done.map((item) =>
-        "primIndex" in item ?
-          new (item.constructor as any)([...(item as any).ranges], item.primIndex)
-        : { ...item, changes: [...(item as any).changes] },
+        "primIndex" in item
+          ? new (item.constructor as any)(
+              [...(item as any).ranges],
+              item.primIndex
+            )
+          : { ...item, changes: [...(item as any).changes] }
       ),
       undone: history.undone.map((item) =>
-        "primIndex" in item ?
-          new (item.constructor as any)([...(item as any).ranges], item.primIndex)
-        : { ...item, changes: [...(item as any).changes] },
+        "primIndex" in item
+          ? new (item.constructor as any)(
+              [...(item as any).ranges],
+              item.primIndex
+            )
+          : { ...item, changes: [...(item as any).changes] }
       ),
     });
 
@@ -397,12 +438,19 @@ Promise.defer(async () => {
       redo: [...item.redo],
     }));
     state.suppressMarkdownChange++;
-    cm.replaceRange(displayText, { line: position.line, ch: position.character });
+    cm.replaceRange(displayText, {
+      line: position.line,
+      ch: position.character,
+    });
     const cursorAfter = cm.getCursor();
     cm.setCursor(cursorBefore);
-    const textMarker = cm.markText({ line: position.line, ch: position.character }, cursorAfter, {
-      className: "text-gray font-italic",
-    });
+    const textMarker = cm.markText(
+      { line: position.line, ch: position.character },
+      cursorAfter,
+      {
+        className: "text-gray font-italic",
+      }
+    );
 
     // Force set `history.undone` to enable redo.
     // The first redo after it should be intercepted and then reject the completion (the history
@@ -414,7 +462,8 @@ Promise.defer(async () => {
 
     // Remove the last registered operation command, so the completion text will not be
     // registered as a new operation command
-    if (!sourceView.inSourceMode) editor.undo.removeLastRegisteredOperationCommand();
+    if (!sourceView.inSourceMode)
+      editor.undo.removeLastRegisteredOperationCommand();
 
     copilot.notification.notifyShown({ uuid });
 
@@ -442,7 +491,10 @@ Promise.defer(async () => {
 
       if (!sourceView.inSourceMode) {
         editor.undo.commandStack.length = 0;
-        Array.prototype.push.apply(editor.undo.commandStack, commandStackBefore);
+        Array.prototype.push.apply(
+          editor.undo.commandStack,
+          commandStackBefore
+        );
       }
 
       cleanup.next("rejected");
@@ -465,14 +517,17 @@ Promise.defer(async () => {
 
       if (!sourceView.inSourceMode) {
         editor.undo.commandStack.length = 0;
-        Array.prototype.push.apply(editor.undo.commandStack, commandStackBefore);
+        Array.prototype.push.apply(
+          editor.undo.commandStack,
+          commandStackBefore
+        );
       }
 
       // Insert completion text
       cm.replaceRange(
         text,
         { line: range.start.line, ch: range.start.character },
-        { line: range.end.line, ch: range.end.character },
+        { line: range.end.line, ch: range.end.character }
       );
 
       cleanup.next("accepted");
@@ -507,7 +562,10 @@ Promise.defer(async () => {
      * @param cm The CodeMirror instance.
      * @param change The change.
      */
-    const cmChangeFixer = (cm: CodeMirror.Editor, change: CodeMirror.EditorChangeCancellable) => {
+    const cmChangeFixer = (
+      cm: CodeMirror.Editor,
+      change: CodeMirror.EditorChangeCancellable
+    ) => {
       if (rejectedOrAccepted) return;
       rejectedOrAccepted = true;
 
@@ -524,7 +582,12 @@ Promise.defer(async () => {
           if (sourceView.inSourceMode) cm[origin]();
           else editor.undo[origin]();
         } else {
-          cm.replaceRange(text.join(Files.useCRLF ? "\r\n" : "\n"), from, to, origin);
+          cm.replaceRange(
+            text.join(Files.useCRLF ? "\r\n" : "\n"),
+            from,
+            to,
+            origin
+          );
         }
       });
     };
@@ -551,10 +614,12 @@ Promise.defer(async () => {
    */
   const insertSuggestionPanelToCodeMirror = (
     cm: CodeMirror.Editor,
-    { displayText, range, text, uuid }: Completion,
+    { displayText, range, text, uuid }: Completion
   ): Observable<"accepted" | "rejected"> | void => {
     // Insert a suggestion panel below the cursor
-    const unattachSuggestionPanel = attachSuggestionPanel(displayText, null, { cm });
+    const unattachSuggestionPanel = attachSuggestionPanel(displayText, null, {
+      cm,
+    });
 
     copilot.notification.notifyShown({ uuid });
 
@@ -563,7 +628,7 @@ Promise.defer(async () => {
       cm.replaceRange(
         text,
         { line: range.start.line, ch: range.start.character },
-        { line: range.end.line, ch: range.end.character },
+        { line: range.end.line, ch: range.end.character }
       );
     };
 
@@ -609,13 +674,28 @@ Promise.defer(async () => {
    * @param newFolder The new workspace folder.
    * @param oldFolder The old workspace folder.
    */
-  const onChangeWorkspaceFolder = (newFolder: string | null, oldFolder: string | null) => {
+  const onChangeWorkspaceFolder = (
+    newFolder: string | null,
+    oldFolder: string | null
+  ) => {
     copilot.notification.workspace.didChangeWorkspaceFolders({
       event: {
-        added:
-          newFolder ? [{ uri: pathToFileURL(newFolder).href, name: path.basename(newFolder) }] : [],
-        removed:
-          oldFolder ? [{ uri: pathToFileURL(oldFolder).href, name: path.basename(oldFolder) }] : [],
+        added: newFolder
+          ? [
+              {
+                uri: pathToFileURL(newFolder).href,
+                name: path.basename(newFolder),
+              },
+            ]
+          : [],
+        removed: oldFolder
+          ? [
+              {
+                uri: pathToFileURL(oldFolder).href,
+                name: path.basename(oldFolder),
+              },
+            ]
+          : [],
       },
     });
   };
@@ -625,31 +705,42 @@ Promise.defer(async () => {
    * @param newPathname The new active file pathname.
    * @param oldPathname The old active file pathname.
    */
-  const onChangeActiveFile = (newPathname: string | null, oldPathname: string | null) => {
+  const onChangeActiveFile = (
+    newPathname: string | null,
+    oldPathname: string | null
+  ) => {
+    // Update chat scope for per-document mode
+    ChatSession.currentDocumentScope = newPathname ?? "";
+
     if (oldPathname) {
       taskManager.rejectCurrentIfExist();
-      copilot.notification.textDocument.didClose({
-        textDocument: { uri: pathToFileURL(oldPathname).href },
-      });
+      // Skip LSP notifications in DeepSeek mode
+      if (settings.provider !== "deepseek" && settings.provider !== "custom") {
+        copilot.notification.textDocument.didClose({
+          textDocument: { uri: pathToFileURL(oldPathname).href },
+        });
+      }
     }
 
     if (newPathname) {
-      copilot.version = 0;
-      copilot.notification.textDocument.didOpen({
-        textDocument: {
-          uri: pathToFileURL(newPathname).href,
-          languageId: "markdown",
-          version: 0,
-          text: editor.getMarkdown(),
-        },
-      });
+      if (settings.provider !== "deepseek" && settings.provider !== "custom") {
+        copilot.version = 0;
+        copilot.notification.textDocument.didOpen({
+          textDocument: {
+            uri: pathToFileURL(newPathname).href,
+            languageId: "markdown",
+            version: 0,
+            text: editor.getMarkdown(),
+          },
+        });
+      }
     }
   };
 
   /**
    * Trigger completion.
    */
-  const triggerCompletion = debounce({ delay: 500 }, () => {
+  const triggerCompletion = debounce({ delay: 200 }, () => {
     logger.debug("Changing markdown", {
       from: state.markdownUsedInLastCompletion,
       to: state.markdown,
@@ -658,12 +749,17 @@ Promise.defer(async () => {
     // Update state
     state.markdownUsedInLastCompletion = state.markdown;
 
-    /* Tell Copilot that file has changed */
-    const version = ++copilot.version;
-    copilot.notification.textDocument.didChange({
-      textDocument: { version, uri: pathToFileURL(taskManager.activeFilePathname).href },
-      contentChanges: [{ text: state.markdown }],
-    });
+    /* Tell Copilot that file has changed (LSP only — skipped for DeepSeek) */
+    if (settings.provider !== "deepseek" && settings.provider !== "custom") {
+      const version = ++copilot.version;
+      copilot.notification.textDocument.didChange({
+        textDocument: {
+          version,
+          uri: pathToFileURL(taskManager.activeFilePathname).href,
+        },
+        contentChanges: [{ text: state.markdown }],
+      });
+    }
 
     /* If caret position is available, fetch completion from Copilot */
     if (state.caretPosition) {
@@ -706,7 +802,10 @@ Promise.defer(async () => {
   const taskManager = new CompletionTaskManager(copilot, {
     workspaceFolder: getWorkspaceFolder() ?? FAKE_TEMP_WORKSPACE_FOLDER,
     activeFilePathname:
-      getActiveFilePathname() ?? path.join(FAKE_TEMP_WORKSPACE_FOLDER, FAKE_TEMP_FILENAME),
+      getActiveFilePathname() ??
+      path.join(FAKE_TEMP_WORKSPACE_FOLDER, FAKE_TEMP_FILENAME),
+    // Provide document text getter for DeepSeek FIM API
+    getDocumentText: () => state.markdown,
   });
 
   /***********
@@ -714,43 +813,50 @@ Promise.defer(async () => {
    ***********/
   attachFooter(copilot);
 
-  /**************************
+  /*****************************
    * Initialize Copilot LSP *
-   **************************/
-  /* Send `initialize` request */
-  await copilot.request.initialize({
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-    processId: window.process?.pid ?? null,
-    capabilities: { workspace: { workspaceFolders: true } },
-    trace: "verbose",
-    rootUri: taskManager.workspaceFolder && pathToFileURL(taskManager.workspaceFolder).href,
-    ...(taskManager.workspaceFolder && {
-      workspaceFolders: [
-        {
-          uri: pathToFileURL(taskManager.workspaceFolder).href,
-          name: path.basename(taskManager.workspaceFolder),
-        },
-      ],
-    }),
-    // Register editor info
-    initializationOptions: {
-      editorInfo: { name: "Typora", version: TYPORA_VERSION },
-      editorPluginInfo: { name: "typora-copilot", version: VERSION },
-    },
-  });
-  copilot.notification.initialized();
+   * (Skipped in DeepSeek mode — no LSP server)
+   *****************************/
+  if (settings.provider !== "deepseek" && settings.provider !== "custom") {
+    /* Send `initialize` request */
+    await copilot.request.initialize({
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      processId: window.process?.pid ?? null,
+      capabilities: { workspace: { workspaceFolders: true } },
+      trace: "verbose",
+      rootUri:
+        taskManager.workspaceFolder &&
+        pathToFileURL(taskManager.workspaceFolder).href,
+      ...(taskManager.workspaceFolder && {
+        workspaceFolders: [
+          {
+            uri: pathToFileURL(taskManager.workspaceFolder).href,
+            name: path.basename(taskManager.workspaceFolder),
+          },
+        ],
+      }),
+      // Register editor info
+      initializationOptions: {
+        editorInfo: { name: "Typora", version: TYPORA_VERSION },
+        editorPluginInfo: { name: "typora-copilot", version: VERSION },
+      },
+    });
+    copilot.notification.initialized();
 
-  await copilot.request.getVersion();
+    await copilot.request.getVersion();
 
-  /* Send initial didOpen */
-  if (taskManager.activeFilePathname) onChangeActiveFile(taskManager.activeFilePathname, null);
+    /* Send initial didOpen */
+    if (taskManager.activeFilePathname)
+      onChangeActiveFile(taskManager.activeFilePathname, null);
+  }
 
   /************
    * Watchers *
    ************/
   /* Interval to update workspace */
   setInterval(() => {
-    const newWorkspaceFolder = getWorkspaceFolder() ?? FAKE_TEMP_WORKSPACE_FOLDER;
+    const newWorkspaceFolder =
+      getWorkspaceFolder() ?? FAKE_TEMP_WORKSPACE_FOLDER;
     if (newWorkspaceFolder !== taskManager.workspaceFolder) {
       const oldWorkspaceFolder = taskManager.workspaceFolder;
       taskManager.workspaceFolder = newWorkspaceFolder;
@@ -760,7 +866,8 @@ Promise.defer(async () => {
 
   const checkActiveFileChange = (): boolean => {
     const newActiveFilePathname =
-      getActiveFilePathname() ?? path.join(FAKE_TEMP_WORKSPACE_FOLDER, FAKE_TEMP_FILENAME);
+      getActiveFilePathname() ??
+      path.join(FAKE_TEMP_WORKSPACE_FOLDER, FAKE_TEMP_FILENAME);
     if (newActiveFilePathname !== taskManager.activeFilePathname) {
       const oldActiveFilePathname = taskManager.activeFilePathname;
       taskManager.activeFilePathname = newActiveFilePathname;
@@ -773,7 +880,9 @@ Promise.defer(async () => {
   /* Reject completion on toggle source mode */
   sourceView.on("beforeToggle", (_, on) => {
     if (taskManager.state === "pending") {
-      logger.debug(`Refusing completion before toggling source mode ${on ? "on" : "off"}`);
+      logger.debug(
+        `Refusing completion before toggling source mode ${on ? "on" : "off"}`
+      );
       taskManager.rejectCurrentIfExist();
     }
   });
@@ -801,16 +910,21 @@ Promise.defer(async () => {
       editor.selection.getRangy()?.collapsed && // If not selecting text
       window.getSelection()?.rangeCount // If has cursor
     ) {
-      const changes = computeTextChanges(state.markdown, newMarkdown, state.caretPosition);
+      const changes = computeTextChanges(
+        state.markdown,
+        newMarkdown,
+        state.caretPosition
+      );
       if (changes.length === 1) {
         const change = changes[0]!;
-        const changeLines = change.text.split(Files.useCRLF ? "\r\n" : "\n").length - 1;
+        const changeLines =
+          change.text.split(Files.useCRLF ? "\r\n" : "\n").length - 1;
         state.caretPosition = {
           line: change.range.start.line + changeLines,
           character:
-            changeLines === 0 ?
-              change.range.start.character + change.text.length
-            : change.text.lastIndexOf(Files.useCRLF ? "\r\n" : "\n") - 1,
+            changeLines === 0
+              ? change.range.start.character + change.text.length
+              : change.text.lastIndexOf(Files.useCRLF ? "\r\n" : "\n") - 1,
         };
 
         // Fix code blocks, math blocks and HTML blocks caret position
@@ -826,9 +940,9 @@ Promise.defer(async () => {
         ) {
           // The line of the starter (```, ~~~, $$, <div>, etc.)
           let starterLine =
-            change.range.start.character === 0 ?
-              change.range.start.line - 1
-            : change.range.start.line;
+            change.range.start.character === 0
+              ? change.range.start.line - 1
+              : change.range.start.line;
 
           const lines = newMarkdown.split(Files.useCRLF ? "\r\n" : "\n");
           if (lines[starterLine] === "") starterLine--;
@@ -844,7 +958,9 @@ Promise.defer(async () => {
             if (
               // Check if the caret is inside a CodeMirror instance
               document.activeElement?.tagName === "TEXTAREA" &&
-              (starter = /^(```([^`]|$)|~~~([^~]|$))/.exec(unindentedLineText)?.[0]?.slice(0, 3))
+              (starter = /^(```([^`]|$)|~~~([^~]|$))/
+                .exec(unindentedLineText)?.[0]
+                ?.slice(0, 3))
             ) {
               ender = starter;
             }
@@ -852,7 +968,10 @@ Promise.defer(async () => {
             // NOTE: Typora renders the CodeMirror instance of a math/HTML block in an async way,
             // so we cannot check if the caret is inside a CodeMirror instance like what we did
             // in code blocks checking
-            else if (unindentedLineText === "$$" && change.text.trimEnd().endsWith("$$")) {
+            else if (
+              unindentedLineText === "$$" &&
+              change.text.trimEnd().endsWith("$$")
+            ) {
               starter = ender = "$$";
             }
             // * HTML block *
@@ -870,14 +989,17 @@ Promise.defer(async () => {
                 state.caretPosition = {
                   line: caretLine,
                   character:
-                    caretLineText.replace(/^(\s|>)*/, "") === ender ? 0 : caretLineText.length,
+                    caretLineText.replace(/^(\s|>)*/, "") === ender
+                      ? 0
+                      : caretLineText.length,
                 };
             }
           }
         }
 
         // Set `character` to 0 if it is negative
-        if (state.caretPosition.character < 0) state.caretPosition.character = 0;
+        if (state.caretPosition.character < 0)
+          state.caretPosition.character = 0;
       } else {
         state.caretPosition = null;
       }

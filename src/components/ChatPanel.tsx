@@ -10,13 +10,18 @@ import { useCallback, useEffect, useRef } from "preact/hooks";
 import type { ChatModel } from "@/client/chat";
 import {
   COPILOT_ACADEMIC_INSTRUCTIONS,
-  COPILOT_CATGIRL_INSTRUCTIONS,
-  COPILOT_CREATIVE_INSTRUCTIONS,
   COPILOT_MARKDOWN_INSTRUCTIONS,
   ChatSession,
   listCopilotChatModels,
 } from "@/client/chat";
 import { t } from "@/i18n";
+import { settings } from "@/settings";
+
+// DeepSeek system prompts (string constants — safe to import directly)
+import {
+  DEEPSEEK_ACADEMIC_INSTRUCTIONS,
+  DEEPSEEK_MARKDOWN_INSTRUCTIONS,
+} from "../providers/deepseek/deepseek-chat";
 
 import CopilotIcon from "./CopilotIcon";
 
@@ -26,11 +31,9 @@ interface ChatPanelProps {
   onClose: () => void;
 }
 
-type PromptType = "Normal" | "Academic" | "Creative" | "CatGirl";
-
 const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
   const input = useSignal("");
-  const promptType = useSignal<PromptType>("Normal");
+  const promptType = useSignal("builtin-normal");
   const isThinking = useSignal(false);
   const isSending = useSignal(false);
   const messages = useSignal<Message[]>([]);
@@ -42,37 +45,55 @@ const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
   const currentSessionId = useSignal("");
   const sessions = useSignal<ChatSession[]>([]);
 
+  // ================================================================
+  // Prompt styles — single signal as runtime source of truth
+  // ================================================================
+  const prompts = useSignal<{ id: string; name: string; content: string }[]>(
+    []
+  );
+
+  // Seed built-in prompts if empty
+  const seedDefaults = () => {
+    if (prompts.value.length > 0) return;
+    const isDS = settings.provider === "deepseek";
+    const builtins = [
+      {
+        id: "builtin-normal",
+        name: t.tran("chat.prompt-style.Normal"),
+        content: isDS
+          ? DEEPSEEK_MARKDOWN_INSTRUCTIONS
+          : COPILOT_MARKDOWN_INSTRUCTIONS,
+      },
+      {
+        id: "builtin-academic",
+        name: t.tran("chat.prompt-style.Academic"),
+        content: isDS
+          ? DEEPSEEK_ACADEMIC_INSTRUCTIONS
+          : COPILOT_ACADEMIC_INSTRUCTIONS,
+      },
+    ];
+    prompts.value = builtins;
+    settings.customPrompts = builtins;
+  };
+
+  // Get current prompt content
   const getPrompt = useCallback(() => {
-    if (promptType.value === "Normal") return COPILOT_MARKDOWN_INSTRUCTIONS;
-    if (promptType.value === "Academic") return COPILOT_ACADEMIC_INSTRUCTIONS;
-    if (promptType.value === "Creative") return COPILOT_CREATIVE_INSTRUCTIONS;
-    return COPILOT_CATGIRL_INSTRUCTIONS.replace(
-      "{{CATGIRL_NAME}}",
-      t.test("chat.prompt-style.cat-girl-name") ? t("chat.prompt-style.cat-girl-name") : "Vanilla",
-    );
+    const p = prompts.value.find((x) => x.id === promptType.value);
+    return p?.content || "";
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getPromptType = useCallback((prompt: string) => {
-    if (prompt === COPILOT_MARKDOWN_INSTRUCTIONS) return "Normal";
-    if (prompt === COPILOT_ACADEMIC_INSTRUCTIONS) return "Academic";
-    if (prompt === COPILOT_CREATIVE_INSTRUCTIONS) return "Creative";
-    if (
-      prompt ===
-      COPILOT_CATGIRL_INSTRUCTIONS.replace(
-        "{{CATGIRL_NAME}}",
-        t.test("chat.prompt-style.cat-girl-name") ?
-          t("chat.prompt-style.cat-girl-name")
-        : "Vanilla",
-      )
-    )
-      return "CatGirl";
-    return "Normal";
+  // Find prompt ID by content (for session restore)
+  const getPromptType = useCallback((content: string) => {
+    const p = prompts.value.find((x) => x.content === content);
+    return p?.id || "builtin-normal";
   }, []);
 
   // Watch modelId changes and update session meta
   useEffect(() => {
-    const currentSession = sessions.value.find((session) => session.id === currentSessionId.value);
+    const currentSession = sessions.value.find(
+      (session) => session.id === currentSessionId.value
+    );
     if (!currentSession) return;
 
     if (currentSession.modelId === modelId.value) return;
@@ -85,16 +106,39 @@ const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
 
   // Watch prompt type changes and update the system prompt
   useEffect(() => {
-    const currentSession = sessions.value.find((session) => session.id === currentSessionId.value);
+    const currentSession = sessions.value.find(
+      (session) => session.id === currentSessionId.value
+    );
     if (!currentSession) return;
 
-    if (currentSession.messages[0]!.content === getPrompt()) return;
+    const newContent = getPrompt();
+    // Don't overwrite the system message with empty content (e.g. when a brand-new
+    // custom prompt hasn't been filled in yet — typing content + Save will sync it).
+    if (!newContent) return;
+    if (currentSession.messages[0]!.content === newContent) return;
 
-    currentSession.messages[0]!.content = getPrompt();
+    currentSession.messages[0]!.content = newContent;
     void ChatSession.save(currentSession.id);
     sessions.value = ChatSession.getAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [promptType.value, currentSessionId.value, getPrompt]);
+
+  // Initialize prompts from settings on mount
+  useEffect(() => {
+    const saved = settings.customPrompts;
+    if (saved.length > 0) {
+      prompts.value = [...saved];
+    } else {
+      seedDefaults();
+    }
+  }, []);
+
+  // Keep prompts signal in sync when user edits in Settings panel
+  useEffect(() => {
+    return settings.onChange("customPrompts", () => {
+      prompts.value = [...settings.customPrompts];
+    });
+  }, []);
 
   // Load models and sessions on mount
   useEffect(() => {
@@ -189,7 +233,7 @@ const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [createNewSession, switchSession],
+    [createNewSession, switchSession]
   );
 
   // Send message handler
@@ -233,14 +277,15 @@ const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
             ...messages.value.slice(0, messages.value.length - 1),
             {
               role: "assistant",
-              content: messages.value[messages.value.length - 1]!.content + content,
+              content:
+                messages.value[messages.value.length - 1]!.content + content,
             },
           ];
         },
         {
           model: models.value.find((model) => model.id === modelId.value),
           signal: abortControllerRef.current.signal,
-        },
+        }
       )
       .then((fullContent) => {
         messages.value = [
@@ -265,7 +310,7 @@ const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
   }, []);
 
   return (
-    <div id="copilot-chat-panel" className="copilot-chat-panel">
+    <div id="ai-chat-panel" className="ai-chat-panel">
       <ChatHeader
         onClose={onClose}
         currentSessionId={currentSessionId}
@@ -284,6 +329,7 @@ const ChatPanel: FC<ChatPanelProps> = ({ onClose }) => {
       <InputArea
         input={input}
         promptType={promptType}
+        prompts={prompts}
         modelId={modelId}
         models={models.value}
         onSend={handleSendMessage}
@@ -342,7 +388,10 @@ const ChatHeader: FC<ChatHeaderProps> = ({
     let newTitle = title;
     Files.editor?.EditHelper.showDialog({
       title: t("chat.dialog.edit-chat-title.title"),
-      html: t("chat.dialog.edit-chat-title.html").replace("{{SESSION_TITLE}}", title),
+      html: t("chat.dialog.edit-chat-title.html").replace(
+        "{{SESSION_TITLE}}",
+        title
+      ),
       buttons: [t("button.ok"), t("button.cancel")],
       callback: (result) => {
         if (result === 0 && onEditChatTitle) onEditChatTitle(id, newTitle);
@@ -357,7 +406,10 @@ const ChatHeader: FC<ChatHeaderProps> = ({
     // Show confirmation dialog
     Files.editor?.EditHelper.showDialog({
       title: t("chat.dialog.delete-session.title"),
-      html: t("chat.dialog.delete-session.html").replace("{{SESSION_TITLE}}", title),
+      html: t("chat.dialog.delete-session.html").replace(
+        "{{SESSION_TITLE}}",
+        title
+      ),
       buttons: [t("button.delete"), t("button.cancel")],
       callback: (result) => {
         if (result === 0 && onDeleteSession) {
@@ -374,10 +426,12 @@ const ChatHeader: FC<ChatHeaderProps> = ({
       <div className="chat-title-dropdown">
         <button
           className="chat-title-dropdown-toggle"
-          onClick={() => (isDropdownOpen.value = !isDropdownOpen.value)}>
+          onClick={() => (isDropdownOpen.value = !isDropdownOpen.value)}
+        >
           <h3>
-            {sessions.value.find((session) => session.id === currentSessionId.value)?.title ||
-              t("chat.button.new-session")}
+            {sessions.value.find(
+              (session) => session.id === currentSessionId.value
+            )?.title || t("chat.button.new-session")}
           </h3>
           <svg
             className="dropdown-chevron"
@@ -385,7 +439,8 @@ const ChatHeader: FC<ChatHeaderProps> = ({
             height="5"
             viewBox="0 0 8 5"
             fill="none"
-            xmlns="http://www.w3.org/2000/svg">
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <path d="M4 5L0 0.5L8 0.5L4 5Z" fill="currentColor" />
           </svg>
         </button>
@@ -397,8 +452,13 @@ const ChatHeader: FC<ChatHeaderProps> = ({
               onClick={() => {
                 onNewSession();
                 isDropdownOpen.value = false;
-              }}>
-              <svg viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+              }}
+            >
+              <svg
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                xmlns="http://www.w3.org/2000/svg"
+              >
                 <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2z" />
               </svg>
               {t("chat.button.new-session")}
@@ -411,7 +471,8 @@ const ChatHeader: FC<ChatHeaderProps> = ({
                 onClick={() => {
                   onSwitchSession(session.id);
                   isDropdownOpen.value = false;
-                }}>
+                }}
+              >
                 <span className="session-title">
                   {session.title || t("chat.button.new-session")}
                 </span>
@@ -422,8 +483,14 @@ const ChatHeader: FC<ChatHeaderProps> = ({
                       e.stopPropagation();
                       handleEditChatTitle(session.id, session.title);
                     }}
-                    ty-hint={t("chat.button.edit-chat-title")}>
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    ty-hint={t("chat.button.edit-chat-title")}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                    >
                       <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z" />
                     </svg>
                   </button>
@@ -433,8 +500,14 @@ const ChatHeader: FC<ChatHeaderProps> = ({
                       e.stopPropagation();
                       handleDeleteSession(session.id, session.title);
                     }}
-                    ty-hint={t("chat.button.delete-session")}>
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    ty-hint={t("chat.button.delete-session")}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                    >
                       <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
                       <path
                         fillRule="evenodd"
@@ -486,7 +559,7 @@ const md = marked
         const language = hljs.getLanguage(lang) ? lang : "plaintext";
         return hljs.highlight(code, { language }).value;
       },
-    }),
+    })
   );
 
 const MessageContent: FC<MessageContentProps> = ({ content }) => {
@@ -541,7 +614,9 @@ const MessageContent: FC<MessageContentProps> = ({ content }) => {
     });
   }, [content]);
 
-  return <div ref={containerRef} className="message-content markdown-content" />;
+  return (
+    <div ref={containerRef} className="message-content markdown-content" />
+  );
 };
 
 const EmptyStateWelcome: FC = () => {
@@ -561,7 +636,7 @@ const EmptyStateWelcome: FC = () => {
 };
 
 interface MessageListProps {
-  promptType: PromptType;
+  promptType: string;
   messages: Message[];
   isThinking: boolean;
   sessionJustSwitchedFlag: boolean;
@@ -576,87 +651,94 @@ const MessageList: FC<MessageListProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    if (containerRef.current) containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    if (containerRef.current)
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
   }, []);
 
   useEffect(scrollToBottom, [sessionJustSwitchedFlag, scrollToBottom]);
 
   // Watch for new messages and scroll to bottom if the role is "user"
   useEffect(() => {
-    if (messages.length > 0 && messages[messages.length - 1]!.role === "user") scrollToBottom();
+    if (messages.length > 0 && messages[messages.length - 1]!.role === "user")
+      scrollToBottom();
   }, [messages, scrollToBottom]);
 
   return (
     <div className="chat-panel-messages" ref={containerRef}>
-      {messages.length === 0 && !isThinking ?
+      {messages.length === 0 && !isThinking ? (
         <EmptyStateWelcome />
-      : messages.map((message, index) => (
+      ) : (
+        messages.map((message, index) => (
           <div key={index} className={`chat-message-row ${message.role}`}>
-            {message.role === "user" ?
+            {message.role === "user" ? (
               <>
                 <div className="message-header">
                   <div className="message-icon user-icon">
-                    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="2" y="6" width="8" height="8" rx="2" fill="#7c80ff" />
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <rect
+                        x="2"
+                        y="6"
+                        width="8"
+                        height="8"
+                        rx="2"
+                        fill="#7c80ff"
+                      />
                       <circle cx="11" cy="5" r="3" fill="#ffb173" />
-                      <rect x="6" y="2" width="4" height="4" rx="1" fill="#67d8ae" />
+                      <rect
+                        x="6"
+                        y="2"
+                        width="4"
+                        height="4"
+                        rx="1"
+                        fill="#67d8ae"
+                      />
                     </svg>
                   </div>
                   <div className="message-author">{t("chat.you")}</div>
                 </div>
                 <pre className="message-content">{message.content}</pre>
               </>
-            : <>
+            ) : (
+              <>
                 <div className="message-header">
-                  <div className="message-icon copilot-icon">
-                    {promptType === "CatGirl" ?
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "13px",
-                        }}>
-                        🐱
-                      </span>
-                    : <CopilotIcon
-                        status="Normal"
-                        textColor="var(--text-color)"
-                        style={{ width: "90%", height: "90%" }}
-                      />
-                    }
+                  <div className="message-icon ai-icon">
+                    <CopilotIcon
+                      status="Normal"
+                      textColor="var(--text-color)"
+                      style={{ width: "90%", height: "90%" }}
+                    />
                   </div>
                   <div className="message-author">
-                    {promptType === "CatGirl" ?
-                      t("chat.prompt-style.cat-girl-name")
-                    : "GitHub Copilot"}
+                    {settings.provider === "deepseek"
+                      ? "DeepSeek"
+                      : settings.provider === "custom"
+                        ? "AI"
+                        : "Copilot"}
                   </div>
                 </div>
                 <MessageContent content={message.content} />
               </>
-            }
+            )}
           </div>
         ))
-      }
+      )}
 
       {isThinking && (
         <div className="chat-message-row assistant">
           <div className="message-header">
-            <div className="message-icon copilot-icon">
-              {promptType === "CatGirl" ?
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "13px",
-                  }}>
-                  🐱
-                </span>
-              : <CopilotIcon status="InProgress" textColor="var(--text-color)" />}
+            <div className="message-icon ai-icon">
+              <CopilotIcon status="InProgress" textColor="var(--text-color)" />
             </div>
             <div className="message-author">
-              {promptType === "CatGirl" ? t("chat.prompt-style.cat-girl-name") : "GitHub Copilot"}
+              {settings.provider === "deepseek"
+                ? "DeepSeek"
+                : settings.provider === "custom"
+                  ? "AI"
+                  : "Copilot"}
             </div>
           </div>
           <div className="message-content typing-indicator">
@@ -699,7 +781,8 @@ const Dropdown: FC<DropdownProps> = ({
         onClick={() => {
           closeOtherDropdown();
           isOpen.value = !isOpen.value;
-        }}>
+        }}
+      >
         {label}
         <svg
           className="dropdown-chevron"
@@ -707,7 +790,8 @@ const Dropdown: FC<DropdownProps> = ({
           height="5"
           viewBox="0 0 8 5"
           fill="none"
-          xmlns="http://www.w3.org/2000/svg">
+          xmlns="http://www.w3.org/2000/svg"
+        >
           <path d="M4 5L0 0.5L8 0.5L4 5Z" fill="currentColor" />
         </svg>
       </button>
@@ -722,7 +806,8 @@ const Dropdown: FC<DropdownProps> = ({
               onClick={() => {
                 onSelect(option.value);
                 isOpen.value = false;
-              }}>
+              }}
+            >
               {option.label}
             </button>
           ))}
@@ -734,7 +819,8 @@ const Dropdown: FC<DropdownProps> = ({
 
 interface InputAreaProps {
   input: Signal<string>;
-  promptType: Signal<PromptType>;
+  promptType: Signal<string>;
+  prompts: Signal<{ id: string; name: string; content: string }[]>;
   modelId: Signal<string>;
   models: ChatModel[];
   onSend: () => void;
@@ -750,6 +836,7 @@ const InputArea: FC<InputAreaProps> = ({
   onSend,
   onStop,
   promptType,
+  prompts,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const measureRef = useRef<HTMLTextAreaElement>(null);
@@ -775,16 +862,17 @@ const InputArea: FC<InputAreaProps> = ({
       if (!measureRef.current) return;
 
       // Replace each empty line with a space so that empty lines are measured properly.
-      measureRef.current.textContent =
-        text ?
-          text
+      measureRef.current.textContent = text
+        ? text
             .split("\n")
             .map((line) => (line === "" ? " " : line))
             .join("\n")
         : " ";
 
       const totalHeight = measureRef.current.scrollHeight;
-      const lineHeight = parseInt(window.getComputedStyle(measureRef.current).lineHeight);
+      const lineHeight = parseInt(
+        window.getComputedStyle(measureRef.current).lineHeight
+      );
 
       // Clear the content to prevent vertical scrollbar from appearing
       measureRef.current.textContent = "";
@@ -792,7 +880,7 @@ const InputArea: FC<InputAreaProps> = ({
       const actualRows = Math.ceil(totalHeight / lineHeight);
       rows.value = Math.max(1, Math.min(6, actualRows)); // Cap at 6 rows
     },
-    [rows],
+    [rows]
   );
 
   useSignalEffect(() => {
@@ -839,7 +927,9 @@ const InputArea: FC<InputAreaProps> = ({
           placeholder={t("chat.input-placeholder")}
           value={input.value}
           rows={rows.value}
-          onChange={(e) => (input.value = (e.target as HTMLTextAreaElement).value)}
+          onChange={(e) =>
+            (input.value = (e.target as HTMLTextAreaElement).value)
+          }
           onKeyDown={(e) => handleKeyDown(e as unknown as KeyboardEvent)}
           disabled={isSending}
         />
@@ -848,43 +938,81 @@ const InputArea: FC<InputAreaProps> = ({
         <div className="chat-input-controls">
           {/* Prompt type dropdown */}
           <Dropdown
-            label={t(`chat.prompt-style.${promptType.value}`)}
+            label={(() => {
+              const p = prompts.value.find((x) => x.id === promptType.value);
+              return p?.name || t("chat.prompt-style.Normal");
+            })()}
             isOpen={isPromptDropdownOpen}
             tooltip={t("chat.prompt-style.tooltip")}
             closeOtherDropdown={() => (isModelDropdownOpen.value = false)}
-            options={[
-              { value: "Normal", label: t("chat.prompt-style.Normal") },
-              { value: "Academic", label: t("chat.prompt-style.Academic") },
-              { value: "Creative", label: t("chat.prompt-style.Creative") },
-              { value: "CatGirl", label: t("chat.prompt-style.CatGirl") },
-            ]}
+            options={prompts.value.map((p) => ({ value: p.id, label: p.name }))}
             onSelect={(value) => {
-              promptType.value = value as never;
+              promptType.value = value;
             }}
           />
 
           {/* Model type dropdown */}
           <Dropdown
-            label={models.find((model) => model.id === modelId.value)?.name || ""}
+            label={(() => {
+              const model = models.find((m) => m.id === modelId.value);
+              if (!model) return "";
+              const key = `chat.models.${model.id}`;
+              return (t.test(key) ? t.tran(key) : model.name) as string;
+            })()}
             isOpen={isModelDropdownOpen}
             tooltip={t("chat.pick-model.tooltip")}
             closeOtherDropdown={() => (isPromptDropdownOpen.value = false)}
-            options={models.map((model) => ({ value: model.id, label: model.name }))}
+            options={models.map((model) => {
+              const key = `chat.models.${model.id}`;
+              return {
+                value: model.id,
+                label: (t.test(key) ? t.tran(key) : model.name) as string,
+              };
+            })}
             onSelect={(value) => (modelId.value = value)}
           />
 
-          {/* Send button */}
+          {/* Send / Stop button */}
           <button
             className={"chat-panel-send-btn" + (isSending ? " sending" : "")}
-            disabled={onStop ? !isSending && !input.value.trim() : !input.value.trim() || isSending}
+            disabled={
+              onStop
+                ? !isSending && !input.value.trim()
+                : !input.value.trim() || isSending
+            }
             onClick={() => {
               if (isSending) {
                 onStop?.();
                 return;
               }
               onSend();
-            }}>
-            {isSending ? t("chat.button.stop") : t("chat.button.send")}
+            }}
+            title={isSending ? t("chat.button.stop") : t("chat.button.send")}
+          >
+            {isSending ? (
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="currentColor"
+              >
+                <rect x="1" y="1" width="10" height="10" rx="1" />
+              </svg>
+            ) : (
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -894,7 +1022,8 @@ const InputArea: FC<InputAreaProps> = ({
 
 // Watch theme change and switch highlight.js theme
 setInterval(() => {
-  const isDark = getLuminance(window.getComputedStyle(document.body).backgroundColor) < 0.5;
+  const isDark =
+    getLuminance(window.getComputedStyle(document.body).backgroundColor) < 0.5;
   (window as any).setHighlightjsTheme(isDark ? "dark" : "light");
 }, 1000);
 
@@ -902,7 +1031,7 @@ export let detachChatPanel: (() => void) | null = null;
 
 export function attachChatPanel(): void {
   // Check if panel already exists (only one instance allowed)
-  if (document.querySelector("#copilot-chat-container")) return;
+  if (document.querySelector("#ai-chat-container")) return;
 
   // Get reference to content element
   const contentDiv = document.querySelector("content");
@@ -910,21 +1039,26 @@ export function attachChatPanel(): void {
 
   // Create container and position it after content
   const container = document.createElement("div");
-  container.id = "copilot-chat-container";
+  container.id = "ai-chat-container";
   container.style.position = "absolute";
   container.style.right = "0";
   container.style.bottom =
-    (document.querySelector<HTMLDivElement>("#footer-copilot")?.getBoundingClientRect().height ||
-      0) + "px";
+    (document
+      .querySelector<HTMLDivElement>("#footer-ai")
+      ?.getBoundingClientRect().height || 0) + "px";
 
-  if (contentDiv.nextSibling) contentDiv.parentNode.insertBefore(container, contentDiv.nextSibling);
+  if (contentDiv.nextSibling)
+    contentDiv.parentNode.insertBefore(container, contentDiv.nextSibling);
   else contentDiv.parentNode.appendChild(container);
 
   // Get saved width from localStorage or use default
-  const savedWidth = localStorage.getItem("copilot-chat-panel-width");
+  const savedWidth = localStorage.getItem("ai-chat-panel-width");
   const defaultWidth = Math.min(
     400,
-    Math.max(280, (window.innerWidth - contentDiv.getBoundingClientRect().left) * 0.25),
+    Math.max(
+      280,
+      (window.innerWidth - contentDiv.getBoundingClientRect().left) * 0.25
+    )
   );
   let panelWidth = savedWidth ? parseInt(savedWidth) : defaultWidth;
 
@@ -965,7 +1099,10 @@ export function attachChatPanel(): void {
 
     // Calculate new width (note direction: moving mouse left increases width)
     const dx = startX - e.clientX;
-    panelWidth = Math.min(Math.max(startWidth + dx, 280), window.innerWidth * 0.5);
+    panelWidth = Math.min(
+      Math.max(startWidth + dx, 280),
+      window.innerWidth * 0.5
+    );
 
     // Update position
     updatePosition();
@@ -979,7 +1116,7 @@ export function attachChatPanel(): void {
     document.body.style.userSelect = "";
 
     // Save width to localStorage
-    localStorage.setItem("copilot-chat-panel-width", String(panelWidth));
+    localStorage.setItem("ai-chat-panel-width", String(panelWidth));
   };
 
   resizeHandle.addEventListener("mousedown", startResize);
@@ -987,13 +1124,13 @@ export function attachChatPanel(): void {
   contentDiv.addEventListener("resize", updatePosition);
   window.addEventListener("resize", updatePosition);
 
-  localStorage.setItem("copilot-chat-panel-open", "true");
+  localStorage.setItem("ai-chat-panel-open", "true");
 
   const detach = () => {
     (contentDiv as HTMLElement).style.right = "0";
     contentDiv.removeEventListener("resize", updatePosition);
     window.removeEventListener("resize", updatePosition);
-    localStorage.removeItem("copilot-chat-panel-open");
+    localStorage.removeItem("ai-chat-panel-open");
     render(null, container);
     container.remove();
   };

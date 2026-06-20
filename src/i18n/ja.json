@@ -1,0 +1,263 @@
+{
+  "button": {
+    "ok": "OK",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "understand": "了解"
+  },
+  "copilot-status": {
+    "Normal": "準備完了",
+    "Warning": "警告",
+    "InProgress": "処理中",
+    "Disabled": "無効"
+  },
+  "chat": {
+    "you": "あなた",
+    "input-placeholder": "AIに質問",
+    "button": {
+      "send": "送信",
+      "stop": "停止",
+      "new-session": "新しいセッション",
+      "edit-chat-title": "タイトルを編集",
+      "delete-session": "セッションを削除"
+    },
+    "welcome": {
+      "title": "AIに質問",
+      "subtitle": "文章の作成、質問への回答、アイデアの生成をサポートします。"
+    },
+    "dialog": {
+      "edit-chat-title": {
+        "title": "新しいタイトル",
+        "html": [
+          "<input id=\"new-chat-title\" type=\"text\" value=\"{{SESSION_TITLE}}\" style=\"width: 100%; margin-top: 8px; margin-bottom: 8px; font-size: 14pt; font-weight: bold;\" />"
+        ]
+      },
+      "delete-session": {
+        "title": "セッションの削除",
+        "html": "<p>セッション「{{SESSION_TITLE}}」を削除してもよろしいですか？</p>"
+      }
+    },
+    "prompt-style": {
+      "tooltip": "会話スタイルを設定",
+      "Normal": "通常",
+      "Academic": "アカデミック",
+      "Custom": "カスタム",
+      "custom-placeholder": "システムプロンプトを入力してください...",
+      "new-custom-prompt": "+ 新しいスタイル",
+      "prompt-name-placeholder": "スタイル名",
+      "prompt-content-placeholder": "システムプロンプトの内容を入力...",
+      "delete-prompt-confirm": "スタイル「{{NAME}}」を削除しますか？",
+      "default-custom-name": "カスタムスタイル",
+      "save-prompt": "保存",
+      "no-custom-prompts": "カスタムスタイルはまだありません。下のボタンまたはチャットパネルで作成してください。"
+    },
+    "pick-model": {
+      "tooltip": "モデルを選択"
+    },
+    "models": {
+      "deepseek-v4-flash": "DeepSeek V4 Flash (高速)",
+      "deepseek-v4-pro": "DeepSeek V4 Pro (高性能)",
+      "gpt-4o": "GPT-4o",
+      "gpt-4o-mini": "GPT-4o Mini",
+      "claude-3-5-sonnet": "Claude 3.5 Sonnet",
+      "llama-3-70b": "Llama 3 70B",
+      "qwen-2.5-72b": "Qwen 2.5 72B"
+    }
+  },
+  "dialog": {
+    "sign-in": {
+      "title": "GitHub Copilot にサインイン",
+      "html": [
+        "<span>デバイス認証コード：</span>",
+        "<div style=\"margin-top: 8px; margin-bottom: 8px; font-size: 14pt; font-weight: bold;\">",
+        "  {{USER_CODE}}",
+        "</div>",
+        "<span>",
+        "  クリップボードにコピーされました。以下のリンクをブラウザで開き、",
+        "  コードを貼り付けてサインインしてください：",
+        "</span>",
+        "<div style=\"margin-top: 8px; margin-bottom: 8px;\">",
+        "  <a href=\"{{VERIFICATION_URI}}\" target=\"_blank\" rel=\"noopener noreferrer\">",
+        "    認証ページを開く",
+        "  </a>",
+        "</div>",
+        "<span>認証完了<strong>後</strong>にOKを押してください。</span>"
+      ]
+    },
+    "sign-in-request-failed": {
+      "title": "GitHub Copilot サインインリクエスト失敗",
+      "html": [
+        "<p>GitHub Copilot にサインインリクエストを送信できませんでした。</p>",
+        "<p>ネットワークの問題の可能性があります。インターネット接続を確認して再試行してください。</p>"
+      ]
+    },
+    "signed-in": {
+      "title": "サインイン完了",
+      "html": [
+        "<p>サインインに成功しました。</p>",
+        "<p>OKを押して続行してください。</p>"
+      ]
+    },
+    "sign-in-verification-failed": {
+      "title": "GitHub Copilot 認証失敗",
+      "html": [
+        "<p>GitHub Copilot のサインイン処理を完了できませんでした。</p>",
+        "<p>ブラウザで認証を完了して<strong>から</strong>OKをクリックしてください。</p>",
+        "<p>問題が解決しない場合は、インターネット接続を確認して再試行してください。</p>"
+      ]
+    },
+    "warn-nodejs-above-20-required-for-typora-above-1-10": {
+      "title": "Typora ≥ 1.10 では Node.js ≥ 20 が必要です",
+      "html": [
+        "<p>",
+        "  Typora ≥ 1.10 でこのプラグインを実行するには Node.js ≥ 20 が必要ですが、",
+        "  有効な Node.js パスが見つかりません。",
+        "</p>",
+        "<p>現在の Typora バージョン：<code>{{TYPORA_VERSION}}</code></p>",
+        "<p>",
+        "  <a href=\"https://nodejs.org/en/download/\" target=\"_blank\">Node.js</a>",
+        "  ≥ 20 をインストールするか、「設定 → Node.js → Node.js パス」でパスを指定し、",
+        "  Typora を再起動してください。",
+        "</p>"
+      ]
+    },
+    "warn-nodejs-above-20-required-for-typora-under-1-9": {
+      "title": "Typora < 1.9 では Node.js ≥ 20 が必要です",
+      "html": [
+        "<p>",
+        "  Typora < 1.9 でこのプラグインを実行するには Node.js ≥ 20 が必要ですが、",
+        "  有効な Node.js パスが見つかりません。",
+        "</p>",
+        "<p>現在の Typora バージョン：<code>{{TYPORA_VERSION}}</code></p>",
+        "<p>",
+        "  <a href=\"https://nodejs.org/en/download/\" target=\"_blank\">Node.js</a>",
+        "  ≥ 20 をインストールするか、「設定 → Node.js → Node.js パス」でパスを指定し、",
+        "  Typora を再起動してください。",
+        "</p>"
+      ]
+    },
+    "warn-nodejs-above-20-required-on-macOS": {
+      "title": "このプラグインの実行には Node.js ≥ 20 が必要です",
+      "html": [
+        "<p>",
+        "  macOS でこのプラグインを実行するには Node.js ≥ 20 が必要ですが、",
+        "  有効な Node.js パスが見つかりません。",
+        "</p>",
+        "<p>",
+        "  <a href=\"https://nodejs.org/en/download/\" target=\"_blank\">Node.js</a>",
+        "  ≥ 20 をインストールするか、「設定 → Node.js → Node.js パス」でパスを指定し、",
+        "  Typora を再起動してください。",
+        "</p>"
+      ]
+    }
+  },
+  "footer": {
+    "menu": {
+      "sign-in": "サインインして認証",
+      "sign-out": "サインアウト",
+      "not-authorized": "GitHub アカウントが Copilot に登録されていません",
+      "disable-completions": "補完を無効にする",
+      "enable-completions": "補完を有効にする",
+      "settings": "設定",
+      "configure-deepseek-api-key": "DeepSeek API キーを設定",
+      "deepseek-configured": "DeepSeek（API キー設定済み）"
+    }
+  },
+  "hint": {
+    "generated-by-copilot": "AI 生成"
+  },
+  "settings-panel": {
+    "title": "AI 設定",
+    "general": {
+      "title": "一般",
+      "recommended-value": "推奨",
+      "reset-to-default": "リセット",
+      "language": {
+        "label": "言語",
+        "description": "UI 言語。Auto はシステム設定に従います。手動選択すると即時に反映されます。"
+      },
+      "disable-completions": {
+        "label": "補完を無効にする",
+        "description": "Typora での AI 補完・提案を無効にします"
+      },
+      "use-inline-completion-text-in-source": {
+        "label": "ソースモードでインライン補完を使用（ベータ）",
+        "description": "ソースモードで候補パネルの代わりにインライン補完テキストを使用します"
+      },
+      "use-inline-completion-text-in-preview-code-blocks": {
+        "label": "プレビューモードのコードブロックでインライン補完を使用（早期アルファ）",
+        "description": "プレビューモードのコードブロックで候補パネルの代わりにインライン補完テキストを使用します",
+        "warning": "この機能は早期アルファ段階であり、ドキュメントが破損する可能性があります。注意して使用してください。"
+      },
+      "chat-scope": {
+        "label": "チャット範囲",
+        "description": "グローバル：全ドキュメントでチャットを共有。ドキュメント別：ファイルごとに個別のチャット。切り替えると現在のデータがクリアされます。"
+      },
+      "completion-max-tokens": {
+        "label": "補完の長さ",
+        "description": "インライン補完テキストの最大トークン数。推奨 40。値が大きいほど長い補完。範囲：10–200"
+      },
+      "completion-temperature": {
+        "label": "ランダム性",
+        "description": "補完テキストのランダム性。推奨 0.1。0 が最も決定的で、値が大きいほど多様。範囲：0–2.0"
+      }
+    },
+    "ai-provider": {
+      "title": "AI プロバイダー",
+      "provider": {
+        "label": "プロバイダー",
+        "description": "AI プロバイダーを選択します。DeepSeek とカスタムは独自の API キーを使用します。"
+      },
+      "deepseek-api-key": {
+        "label": "API キー",
+        "description": "プロバイダープラットフォームの API キー。ローカルに保存されます。"
+      },
+      "deepseek-model": {
+        "label": "モデル",
+        "description": "モデル名。既知：deepseek-v4-flash（高速）、deepseek-v4-pro（高性能）。",
+        "hint": "任意のモデル名を入力してください。"
+      },
+      "custom-api-base": {
+        "label": "API ベース URL",
+        "description": "OpenAI 互換 API のベース URL。例：https://api.openai.com/v1"
+      },
+      "custom-api-key": {
+        "label": "API キー",
+        "description": "カスタムプロバイダーの API キー。ローカルに保存されます。"
+      },
+      "custom-chat-model": {
+        "label": "チャットモデル",
+        "description": "チャット用モデル。例：gpt-4o"
+      },
+      "custom-completion-model": {
+        "label": "補完モデル（任意）",
+        "description": "インライン補完用モデル。空の場合はチャットモデルを使用します。"
+      },
+      "custom-prompts": {
+        "label": "カスタム会話スタイル",
+        "description": "名前付きシステムプロンプトを作成します。チャットパネルで選択して会話スタイルを切り替えられます。"
+      }
+    },
+    "nodejs": {
+      "title": "Node.js",
+      "note": "Typora v1.10 以降、すべてのプラットフォームで Node.js ≥ 20 が必要です。",
+      "constant": {
+        "PATH_AUTO_DETECT": "自動検出",
+        "PATH_BUNDLED": "バンドル"
+      },
+      "node-path": {
+        "label": "Node.js パス（再起動後に適用）",
+        "description": "Copilot LSP の実行に使用する Node.js パスを選択または入力してください",
+        "message": {
+          "retrieving-version": "\"{{PATH}}\" の Node.js バージョンを取得中...",
+          "updated": "Node.js パスを \"{{PATH}}\"（{{VERSION}}）に更新しました",
+          "updated-auto": "Node.js パスを自動検出パスに更新しました",
+          "warn-invalid": "\"{{PATH}}\" の Node.js バージョンを取得できませんでした",
+          "warn-invalid-version": "\"{{PATH}}\" に Node.js ≥ 20 が必要ですが、{{VERSION}} が見つかりました",
+          "warn-empty-select-or-input": "有効な Node.js パスを選択または入力してください",
+          "warn-empty-input": "有効な Node.js パスを入力してください"
+        }
+      }
+    }
+  }
+}

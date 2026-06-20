@@ -22,9 +22,11 @@ import "./footer.scss";
  * Get DOM element of Typora footer bar.
  * @returns
  */
-const getFooterBarDOM = () => document.querySelector<HTMLElement>("footer.ty-footer");
+const getFooterBarDOM = () =>
+  document.querySelector<HTMLElement>("footer.ty-footer");
 
-const getFooterTextColor = () => getCSSClassStyles("footer-item", "footer-item-right").color;
+const getFooterTextColor = () =>
+  getCSSClassStyles("footer-item", "footer-item-right").color;
 
 export interface FooterPanelOptions {
   copilot: CopilotClient;
@@ -35,7 +37,10 @@ export interface FooterPanelOptions {
  * Panel for the user to control Copilot.
  * @returns
  */
-export const FooterPanel: FC<FooterPanelOptions> = ({ copilot, open = true }) => {
+export const FooterPanel: FC<FooterPanelOptions> = ({
+  copilot,
+  open = true,
+}) => {
   const accountStatus = useSignal<CopilotAccountStatus>("NotSignedIn");
   const disableCompletions = useSignal(settings.disableCompletions);
 
@@ -65,9 +70,12 @@ export const FooterPanel: FC<FooterPanelOptions> = ({ copilot, open = true }) =>
 
   // Sync settings
   useEffect(() => {
-    const unlistenSettingsChange = settings.onChange("disableCompletions", (value) => {
-      disableCompletions.value = value;
-    });
+    const unlistenSettingsChange = settings.onChange(
+      "disableCompletions",
+      (value) => {
+        disableCompletions.value = value;
+      }
+    );
     return () => {
       unlistenSettingsChange();
     };
@@ -77,7 +85,9 @@ export const FooterPanel: FC<FooterPanelOptions> = ({ copilot, open = true }) =>
   /**
    * Distance from the element bottom to App bottom.
    */
-  const bottom = useSignal(useMemo(() => (getFooterBarDOM()?.clientHeight ?? 30) + 2, []));
+  const bottom = useSignal(
+    useMemo(() => (getFooterBarDOM()?.clientHeight ?? 30) + 2, [])
+  );
 
   // Watch footer bar height and change footer icon height accordingly
   useEffect(() => {
@@ -90,8 +100,18 @@ export const FooterPanel: FC<FooterPanelOptions> = ({ copilot, open = true }) =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isDeepSeek = settings.provider === "deepseek";
+  const hasApiKey = !!settings.deepseekApiKey;
+
   const handleSignIn = async () => {
-    let response!: Awaited<ReturnType<CopilotClient["request"]["signInInitiate"]>>;
+    // In DeepSeek mode, open settings panel to configure API key
+    if (isDeepSeek) {
+      settingsPanelOpen.value = true;
+      return;
+    }
+    let response!: Awaited<
+      ReturnType<CopilotClient["request"]["signInInitiate"]>
+    >;
     try {
       response = await copilot.request.signInInitiate();
     } catch (e) {
@@ -171,46 +191,75 @@ export const FooterPanel: FC<FooterPanelOptions> = ({ copilot, open = true }) =>
       )}
 
       <div
-        id="footer-copilot-panel"
+        id="footer-ai-panel"
         className="dropdown-menu"
         style={{
           bottom: bottom.value,
           ...(!open && { display: "none" }),
-        }}>
-        {accountStatus.value === "NotAuthorized" && (
-          <div className="footer-copilot-panel-hint">{t("footer.menu.not-authorized")}</div>
-        )}
-        {accountStatus.value === "NotSignedIn" && (
+        }}
+      >
+        {/* DeepSeek mode: show API key status and config button */}
+        {isDeepSeek && !hasApiKey && (
           <button
             type="button"
-            className="footer-copilot-panel-btn"
-            onClick={() => void handleSignIn()}>
+            className="footer-ai-panel-btn"
+            onClick={() => void handleSignIn()}
+          >
+            {t.test("footer.menu.configure-deepseek-api-key")
+              ? t("footer.menu.configure-deepseek-api-key")
+              : "Configure DeepSeek API Key"}
+          </button>
+        )}
+        {isDeepSeek && hasApiKey && (
+          <div className="footer-ai-panel-hint">
+            {t.test("footer.menu.deepseek-configured")
+              ? t("footer.menu.deepseek-configured")
+              : "DeepSeek (API Key configured)"}
+          </div>
+        )}
+        {/* Copilot mode: show sign-in/sign-out */}
+        {!isDeepSeek && accountStatus.value === "NotAuthorized" && (
+          <div className="footer-ai-panel-hint">
+            {t("footer.menu.not-authorized")}
+          </div>
+        )}
+        {!isDeepSeek && accountStatus.value === "NotSignedIn" && (
+          <button
+            type="button"
+            className="footer-ai-panel-btn"
+            onClick={() => void handleSignIn()}
+          >
             {t("footer.menu.sign-in")}
           </button>
         )}
-        {accountStatus.value !== "NotSignedIn" && (
+        {!isDeepSeek && accountStatus.value !== "NotSignedIn" && (
           <button
             type="button"
-            className="footer-copilot-panel-btn"
-            onClick={() => void handleSignOut()}>
+            className="footer-ai-panel-btn"
+            onClick={() => void handleSignOut()}
+          >
             {t("footer.menu.sign-out")}
           </button>
         )}
         <button
           type="button"
-          className="footer-copilot-panel-btn"
+          className="footer-ai-panel-btn"
           onClick={() => {
             disableCompletions.value = !disableCompletions.value;
             settings.disableCompletions = disableCompletions.value;
-          }}>
-          {t(`footer.menu.${disableCompletions.value ? "enable" : "disable"}-completions`)}
+          }}
+        >
+          {t(
+            `footer.menu.${disableCompletions.value ? "enable" : "disable"}-completions`
+          )}
         </button>
         <button
           type="button"
-          className="footer-copilot-panel-btn"
+          className="footer-ai-panel-btn"
           onClick={() => {
             settingsPanelOpen.value = true;
-          }}>
+          }}
+        >
           {t("footer.menu.settings")}
         </button>
       </div>
@@ -228,15 +277,20 @@ export interface FooterOptions {
  */
 export const Footer: FC<FooterOptions> = ({ copilot }) => {
   const status = useSignal<CopilotStatus | "Disabled">(
-    settings.disableCompletions ? "Disabled" : copilot.status,
+    settings.disableCompletions ? "Disabled" : copilot.status
   );
 
   // Sync status
   useEffect(() => {
-    const unlistenSettingsChange = settings.onChange("disableCompletions", (value) => {
-      status.value = value ? "Disabled" : copilot.status;
-    });
-    const handler: CopilotClientEventHandler<"changeStatus"> = ({ newStatus }) => {
+    const unlistenSettingsChange = settings.onChange(
+      "disableCompletions",
+      (value) => {
+        status.value = value ? "Disabled" : copilot.status;
+      }
+    );
+    const handler: CopilotClientEventHandler<"changeStatus"> = ({
+      newStatus,
+    }) => {
       if (status.value === "Disabled") return;
       status.value = newStatus;
     };
@@ -248,7 +302,9 @@ export const Footer: FC<FooterOptions> = ({ copilot }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const height = useSignal(useMemo(() => getFooterBarDOM()?.clientHeight ?? 30, []));
+  const height = useSignal(
+    useMemo(() => getFooterBarDOM()?.clientHeight ?? 30, [])
+  );
 
   // Watch footer bar height and change footer icon height accordingly
   useEffect(() => {
@@ -283,7 +339,8 @@ export const Footer: FC<FooterOptions> = ({ copilot }) => {
 
   // Remember chat panel open state
   useEffect(() => {
-    if (localStorage.getItem("copilot-chat-panel-open") === "true") attachChatPanel();
+    if (localStorage.getItem("ai-chat-panel-open") === "true")
+      attachChatPanel();
   }, []);
 
   return (
@@ -294,44 +351,54 @@ export const Footer: FC<FooterOptions> = ({ copilot }) => {
       {/* Main footer item */}
       <div
         className="footer-item footer-item-right"
-        id="footer-copilot"
+        id="footer-ai"
         style={{ height: height.value, display: "flex", alignItems: "center" }}
-        ty-hint={"Copilot (" + t(`copilot-status.${status.value}`) + ")"}>
-        {/* Main Copilot icon - opens chat */}
+        ty-hint={"AI (" + t(`copilot-status.${status.value}`) + ")"}
+      >
+        {/* Main AI icon - opens chat */}
         <div
-          className="footer-copilot-icon"
-          aria-label="Open Copilot Chat"
+          className="footer-ai-icon"
+          aria-label="Open AI Chat"
           role="button"
           onClick={(ev) => {
             isPanelOpen.value = false;
-            document.body.classList.remove("ty-show-spell-check", "ty-show-word-count");
-            const chatContainer = document.querySelector("#copilot-chat-container");
+            document.body.classList.remove(
+              "ty-show-spell-check",
+              "ty-show-word-count"
+            );
+            const chatContainer = document.querySelector("#ai-chat-container");
             if (chatContainer) {
               detachChatPanel?.();
             } else {
               attachChatPanel();
             }
             ev.stopPropagation();
-          }}>
+          }}
+        >
           <CopilotIcon status={status.value} textColor={getFooterTextColor()} />
         </div>
 
         {/* Arrow button - opens settings menu */}
         <div
-          className="footer-copilot-menu-button"
-          aria-label="Copilot Settings"
+          className="footer-ai-menu-button"
+          aria-label="AI Settings"
           role="button"
           onClick={(ev) => {
             isPanelOpen.value = !isPanelOpen.value;
-            document.body.classList.remove("ty-show-spell-check", "ty-show-word-count");
+            document.body.classList.remove(
+              "ty-show-spell-check",
+              "ty-show-word-count"
+            );
             ev.stopPropagation();
-          }}>
+          }}
+        >
           <svg
             width="8"
             height="4"
             viewBox="0 0 8 4"
             fill="none"
-            xmlns="http://www.w3.org/2000/svg">
+            xmlns="http://www.w3.org/2000/svg"
+          >
             <path d="M4 0L8 4H0L4 0Z" fill={getFooterTextColor()} />
           </svg>
         </div>
@@ -351,7 +418,8 @@ export const attachFooter = (copilot: CopilotClient) => {
   const footerBar = getFooterBarDOM();
   if (footerBar) {
     const firstFooterItemRight = $(footerBar).find(".footer-item-right")[0];
-    if (firstFooterItemRight) firstFooterItemRight.insertAdjacentElement("beforebegin", container);
+    if (firstFooterItemRight)
+      firstFooterItemRight.insertAdjacentElement("beforebegin", container);
     else footerBar.appendChild(container);
   } else {
     container.style.position = "fixed";

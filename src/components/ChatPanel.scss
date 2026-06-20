@@ -1,4 +1,4 @@
-#copilot-chat-container {
+#ai-chat-container {
   overflow: hidden;
 }
 
@@ -50,7 +50,7 @@
 }
 
 // Main panel container
-.copilot-chat-panel {
+.ai-chat-panel {
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -92,6 +92,89 @@
   padding: 12px;
 }
 
+// Custom prompt editor — above main input
+.custom-prompt-editor {
+  margin-bottom: 8px;
+
+  .custom-prompt-name-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .custom-prompt-name-input {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    border: 1px solid var(--border-color, #ccc);
+    background: var(--bg-color);
+    color: var(--text-color);
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color, #4078c0);
+      box-shadow: 0 0 0 1px var(--primary-color, #4078c0);
+    }
+  }
+
+  .custom-prompt-save-btn {
+    padding: 3px 10px;
+    font-size: 12px;
+    background: var(--primary-color, #4078c0);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:hover {
+      opacity: 0.85;
+    }
+  }
+
+  .custom-prompt-delete-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--text-color);
+    opacity: 0.4;
+    cursor: pointer;
+    flex-shrink: 0;
+
+    &:hover {
+      opacity: 1;
+      color: #e53935;
+    }
+  }
+
+  textarea {
+    width: 100%;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-family: monospace;
+    resize: vertical;
+    border-radius: 4px;
+    border: 1px solid var(--border-color, #ccc);
+    background: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.4;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color, #4078c0);
+      box-shadow: 0 0 0 1px var(--primary-color, #4078c0);
+    }
+  }
+}
+
 // Textarea wrapper with integrated controls
 .chat-input-wrapper {
   position: relative;
@@ -116,7 +199,10 @@
 
     &:focus {
       outline: none; // Remove default outline
-      border-color: var(--primary-color, #4078c0); // Change border color when focused
+      border-color: var(
+        --primary-color,
+        #4078c0
+      ); // Change border color when focused
       box-shadow: 0 0 0 1px var(--primary-color, #4078c0); // Subtle glow
     }
   }
@@ -319,15 +405,20 @@
   }
 }
 
-// Send button
+// Send button (icon-only)
 .chat-panel-send-btn {
-  padding: 2px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
   background-color: var(--primary-color, #4078c0);
   color: white;
   border: none;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 12px !important;
+  flex-shrink: 0;
 
   &:disabled {
     background-color: #ccc;
@@ -394,7 +485,7 @@
       color: var(--text-color);
     }
 
-    .copilot-icon {
+    .ai-icon {
       background-color: rgba(0, 0, 0, 3%);
       padding: 4px;
     }
