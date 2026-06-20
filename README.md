@@ -1,22 +1,28 @@
-# Typora Copilot
+# Typora Copilot — DeepSeek Edition
 
 English | [简体中文](./README.zh-CN.md)
 
 ![Copilot suggestion screenshot](./docs/screenshot.png)
 
-[GitHub Copilot](https://github.com/features/copilot) & [Copilot Chat](https://docs.github.com/copilot/using-github-copilot/copilot-chat) plugin for [Typora](https://typora.io/) on both Windows, macOS and Linux.
+> **Forked from [Snowflyt/typora-copilot](https://github.com/Snowflyt/typora-copilot) v0.3.12 (MIT)** — extended with DeepSeek and custom OpenAI-compatible provider support.
 
-This plugin uses the [official GitHub Copilot LSP server](https://www.npmjs.com/package/@github/copilot-language-server) to provide suggestions in real-time right from your editor.
+AI-powered inline completions and chat for [Typora](https://typora.io/) on Windows, macOS and Linux. Supports **three AI providers**: GitHub Copilot, DeepSeek, and any OpenAI-compatible API.
+
+## Provider Comparison
+
+| Feature               | GitHub Copilot | DeepSeek         | Custom Provider |
+| --------------------- | -------------- | ---------------- | --------------- |
+| Inline completions    | ✅ (LSP)       | ✅ (FIM API)     | ✅ (Chat-based) |
+| Chat panel            | ✅             | ✅               | ✅              |
+| Subscription required | GitHub Copilot | DeepSeek API Key | Custom API Key  |
+| Offline support       | ❌             | ❌               | ❌              |
+| Model selection       | Via Copilot    | Editable         | Editable        |
+| Custom system prompts | ❌             | ✅               | ✅              |
 
 ## Compatibility
 
 > [!NOTE]
->
 > Since Typora v1.10, all platforms require [Node.js](https://nodejs.org/en/download) ≥ 20 to use this plugin.
->
-> (For those special users on Windows / Linux using Typora 1.9, no need for Node.js to be installed. :wink:)
-
-_\*Note: `/` means not tested._
 
 | Typora Version | Windows 11 | Ubuntu 24.04 | macOS 15.x |
 | -------------- | ---------- | ------------ | ---------- |
@@ -26,34 +32,20 @@ _\*Note: `/` means not tested._
 | 1.10.8         | ✓          | ✓            | ✓          |
 | 1.10.6         | ✓          | ✓            | ✓          |
 | 1.9.5          | ✓          | /            | /          |
-| 1.9.4          | /          | /            | ✓          |
-| 1.9.3          | /          | ✓            | /          |
 | 1.8.10         | ✓          | ✓            | ✓          |
-| 1.8.8          | /          | ✓            | /          |
-| 1.8.6          | ✓          | /            | /          |
-| 1.8.5          | ✓          | /            | ✓          |
-| 1.7.6          | ✓          | /            | /          |
-| 1.6.7          | ✓          | /            | /          |
-| 1.5.12         | ✓          | /            | /          |
-| 1.4.8          | ✓          | /            | /          |
-| 1.3.8          | ✓          | /            | /          |
-| 1.2.5          | ✓          | /            | /          |
-| 1.2.3          | ✓          | /            | /          |
-| 1.0.3          | ✓          | /            | /          |
-| 0.11.18-beta   | ✓          | /            | /          |
 
 ## Prerequisites
 
 - Public network connection.
-- Active GitHub Copilot subscription.
+- **GitHub Copilot mode:** Active GitHub Copilot subscription.
+- **DeepSeek mode:** A [DeepSeek API Key](https://platform.deepseek.com/api_keys) (free tier available).
+- **Custom mode:** Any OpenAI-compatible API endpoint and key.
 
 ## Installation
 
-**Before installing using any method, make sure Typora is fully closed (especially on macOS: use <kbd>⌘</kbd>+<kbd>Q</kbd> to quit).**
+**Before installing, make sure Typora is fully closed (especially on macOS: use <kbd>⌘</kbd>+<kbd>Q</kbd> to quit).**
 
 ### Automated Installation (Recommended)
-
-To install the plugin, you can just copy and paste the following command into your terminal:
 
 <details>
   <summary><strong>Windows</strong></summary>
@@ -61,7 +53,7 @@ To install the plugin, you can just copy and paste the following command into yo
 Run the following command in PowerShell **as administrator**:
 
 ```powershell
-iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install.ps1" | iex
+iwr -Uri "https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/install.ps1" | iex
 ```
 
 </details>
@@ -72,7 +64,7 @@ iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install
 Run the following command in your terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/install.sh | sudo bash
 ```
 
 </details>
@@ -83,130 +75,113 @@ curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/instal
 Run the following command in your terminal:
 
 ```bash
-wget -O - https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install.sh | sudo bash
+wget -O - https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/install.sh | sudo bash
 ```
 
 </details>
 
-### Script Install
-
-<details>
-  <summary><strong>Windows</strong></summary>
-
-For Windows users, first download the latest release from [the releases page](https://github.com/Snowflyt/typora-copilot/releases) and unzip it. Then locate to the folder where you unzipped the release and run the following command in PowerShell **as administrator**:
-
-```powershell
-.\bin\install_windows.ps1
-```
-
-If the script fails to find Typora, you can specify the path to Typora manually:
-
-```powershell
-.\bin\install_windows.ps1 -Path "C:\Program Files\Typora\" # Replace with your Typora path
-# Or use the alias
-# .\bin\install_windows.ps1 -p "C:\Program Files\Typora\" # Replace with your Typora path
-```
-
-</details>
-
-<details>
-  <summary><strong>macOS</strong></summary>
-
-For macOS users, first download the latest release from [the releases page](https://github.com/Snowflyt/typora-copilot/releases) and unzip it. Then locate to the folder where you unzipped the release and run the following command in terminal:
-
-```bash
-sudo bash ./bin/install_macos.sh
-```
-
-If the script fails to find Typora, you can specify the path to Typora manually:
-
-```bash
-sudo bash ./bin/install_macos.sh --path "/Applications/Typora.app/" # Replace with your Typora path
-# Or use the alias
-# sudo bash ./bin/install_macos.sh -p "/Applications/Typora.app/" # Replace with your Typora path
-```
-
-You’ll see a message logging the installation directory of the plugin. _Keep it in mind, you’ll need it when uninstalling the plugin._ After that, you can safely delete the release folder.
-
-</details>
-
-<details>
-  <summary><strong>Linux</strong></summary>
-
-For Linux users, first download the latest release from [the releases page](https://github.com/Snowflyt/typora-copilot/releases) and unzip it. THen locate to the folder where you unzipped the release and run the following command in terminal:
-
-```bash
-sudo bash ./bin/install_linux.sh
-```
-
-If the script fails to find Typora, you can specify the path to Typora manually:
-
-```bash
-sudo bash ./bin/install_linux.sh --path "/usr/share/typora/" # Replace with your Typora path
-# Or use the alias
-# sudo bash ./bin/install_linux.sh -p "/usr/share/typora/" # Replace with your Typora path
-```
-
-You’ll see a message logging the installation directory of the plugin. _Keep it in mind, you’ll need it when uninstalling the plugin._ After that, you can safely delete the release folder.
-
-</details>
-
-### Manual Install
+### Build from Source
 
 <details>
   <summary>Click to expand</summary>
 
-1. Download the latest release from [the releases page](https://github.com/Snowflyt/typora-copilot/releases) and unzip it.
-2. For Windows / Linux users, find `window.html` in your Typora installation folder, usually located at `<typora_root_path>/resources/`; For macOS users, find `index.html` in your Typora installation folder, usually located at `<typora_root_path>/Contents/Resources/TypeMark/`. `<typora_root_path>` is the path where Typora is installed, replace it with your real Typora installation path (note that the angle brackets `<` and `>` should also be removed). This folder is called Typora resource folder in the following steps.
-3. Create a folder named `copilot` in Typora resource folder.
-4. Copy the contents of the unzipped release into the `copilot` folder. **Ensure the final path is `copilot/index.js` (not `copilot/typora-copilot/index.js`). If you see the latter, move the files up one level so `index.js` sits directly under `copilot`.**
-5. For Windows / Linux users, open the previous `window.html` file you found in Typora resource folder with a text editor, and add `<script src="./copilot/index.js" defer="defer"></script>` right after something like `<script src="./appsrc/window/frame.js" defer="defer"></script>` or `<script src="./app/window/frame.js" defer="defer"></script>`; For macOS users, open the previous `index.html` file you found in Typora resource folder with a text editor, and add `<script src="./copilot/index.js" defer></script>` right after something like `<script src="./appsrc/main.js" aria-hidden="true" defer></script>` or `<script src="./app/main.js" aria-hidden="true" defer></script>`.
-6. Restart Typora.
-7. For macOS users, if you see a warning dialog saying Typora may be damaged, Ctrl-click Typora and select “Open” to open Typora.
+```bash
+# 1. Clone the repository
+git clone https://github.com/KissSheep666/TyporaAI-.git
+cd TyporaAI-
+
+# 2. Install dependencies
+npm install
+
+# 3. Build the plugin
+npm run build:dev
+# The build output is in the dist/ directory
+
+# 4. Deploy to Typora
+# First, locate your Typora installation directory:
+#   Windows: C:\Program Files\Typora\
+#   macOS:   /Applications/Typora.app/
+#   Linux:   /usr/share/typora/
+
+# Copy dist/ to Typora's resources/copilot/ directory
+# Windows example (run as Administrator):
+# rm -r "C:\Program Files\Typora\resources\copilot"
+# cp -r dist "C:\Program Files\Typora\resources\copilot"
+
+# Linux example:
+# sudo rm -rf /usr/share/typora/resources/copilot
+# sudo cp -r dist /usr/share/typora/resources/copilot
+
+# 5. Inject the plugin script into Typora
+# For Windows/Linux: Add this line to <typora>/resources/window.html
+#   <script src="./copilot/index.js" defer="defer"></script>
+#   (add it right after the frame.js <script> tag)
+#
+# For macOS: Add this line to <typora>/Contents/Resources/TypeMark/index.html
+#   <script src="./copilot/index.js" defer></script>
+#   (add it right after the main.js <script> tag)
+
+# 6. Restart Typora
+```
 
 </details>
 
 ## Setup
 
-When finished installation, you’ll find an icon in the toolbar of Typora (i.e. the bottom-right corner of Typora). Click **the arrow button** next to the icon to open the panel of Copilot, and then click “Sign in to authenticate Copilot”.
+### GitHub Copilot Mode
+
+When finished installation, click **the arrow button** next to the Copilot icon in Typora's toolbar (bottom-right corner), then click "Sign in to authenticate Copilot".
 
 ![Copilot icon](./docs/toolbar-icon.png)
 
-Follow the prompts to authenticate Copilot plugin:
+Follow the prompts to authenticate.
 
-1. The User Code will be auto copied to your clipboard.
-2. Follow the instructions on the pop-up dialog to open the GitHub authentication page in your browser.
-3. Paste the User Code into the GitHub authentication page.
-4. Return to Typora and press OK on the dialog.
-5. If you see a “Signed in to Copilot” dialog _after a few seconds_, Copilot plugin should start working since then.
+### DeepSeek / Custom Provider Mode
 
-## Copilot Chat
+1. Click the Copilot icon in the toolbar → **Settings**.
+2. Under the **AI Provider** tab, select **DeepSeek** or **Custom**.
+3. Enter your API Key and configure the model name.
 
-Clicking the Copilot icon in the toolbar will toggle the Copilot Chat panel. You can use it to chat with Copilot, and the current document and previous chat history will be sent to Copilot as context.
+| Setting              | Description                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| **DeepSeek API Key** | Obtain from [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) |
+| **DeepSeek Model**   | Default: `deepseek-v4-flash`. Also available: `deepseek-v4-pro`, `deepseek-chat`     |
+| **Custom API Base**  | Your OpenAI-compatible endpoint (e.g. `https://api.openai.com/v1`)                   |
+| **Custom API Key**   | Your API key for the custom provider                                                 |
+| **Custom Model**     | Model name supported by your provider                                                |
 
-Make sure you have signed in to Copilot before using the Copilot Chat panel. After signing in, restart Typora to make sure the Copilot Chat panel works properly.
+> **Note:** API Keys are stored locally in Typora's localStorage. They are never sent anywhere except directly to the respective API endpoints.
 
-You can:
+### Custom Prompts (Personas)
 
-- Select, create, edit chat title, or delete a chat session from the dropdown list at the top of the panel.
-- Click the “Send” button or press <kbd>Enter</kbd> to send the message. (You can use <kbd>Shift</kbd> + <kbd>Enter</kbd> or <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to insert a new line.)
-- Click the “Stop” button to stop the current request.
-- Select a prompt style from the dropdown list at the bottom of the panel.
-- Pick the model you want to use from the dropdown list at the bottom of the panel.
+You can create named system prompts (personas) for the Chat panel:
+
+1. Open **Settings → AI Provider** tab.
+2. Under "Custom Conversation Styles", click **+ New Style**.
+3. Give it a name and write your system prompt content.
+4. Click **Save**.
+
+In the Chat panel, select your custom prompt from the dropdown to use it in conversations.
+
+## Chat Panel
+
+Click the Copilot icon in the toolbar to toggle the Chat panel. The current document and previous chat history are sent as context.
+
+- Select, create, edit, or delete chat sessions from the dropdown.
+- Press <kbd>Enter</kbd> to send, <kbd>Shift</kbd>+<kbd>Enter</kbd> for new line.
+- Click **Stop** to cancel the current request.
+- Choose a prompt style from the dropdown at the bottom.
+- Pick the model you want to use.
 
 ## Uninstallation
 
 ### Automated Uninstallation (Recommended)
 
-To uninstall the plugin, you can just copy and paste the following command into your terminal:
-
 <details>
   <summary><strong>Windows</strong></summary>
 
-Run the following command in PowerShell **as administrator**:
-
 ```powershell
-iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uninstall_windows.ps1" | iex
+iwr -Uri "https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/bin/uninstall_windows.ps1" | iex
 ```
 
 </details>
@@ -214,10 +189,8 @@ iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uni
 <details>
   <summary><strong>macOS</strong></summary>
 
-Run the following command in your terminal:
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uninstall_macos.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/bin/uninstall_macos.sh | sudo bash
 ```
 
 </details>
@@ -225,84 +198,35 @@ curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/un
 <details>
   <summary><strong>Linux</strong></summary>
 
-Run the following command in your terminal:
-
 ```bash
-wget -O - https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uninstall_linux.sh | sudo bash
+wget -O - https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/bin/uninstall_linux.sh | sudo bash
 ```
 
-</details>
-
-### Script Uninstall
-
-<details>
-  <summary><strong>Windows</strong></summary>
-
-For Windows users, locate to the installation directory of the plugin and run the following command in PowerShell **as administrator**.
-
-```powershell
-.\bin\uninstall_windows.ps1
-```
-
-You can still specify the path to Typora manually by adding `-Path` or `-p`, just like the installation script.
-
-</details>
-
-<details>
-  <summary><strong>macOS</strong></summary>
-
-For macOS users, locate to the installation directory of the plugin and run the following command in terminal.
-
-```bash
-sudo bash ./bin/uninstall_macos.sh
-```
-
-You can still specify the path to Typora manually by adding `--path` or `-p`, just like the installation script.
-
-</details>
-
-<details>
-  <summary><strong>Linux</strong></summary>
-
-For Linux users, locate to the installation directory of the plugin and run the following command in terminal.
-
-```bash
-sudo bash ./bin/uninstall_linux.sh
-```
-
-You can still specify the path to Typora manually by adding `--path` or `-p`, just like the installation script.
-
-</details>
-
-### Manual Uninstall
-
-<details>
-  <summary>Click to expand</summary>
-
-1. For Windows / Linux users, find `window.html` in your Typora installation folder, usually located at `<typora_root_path>/resources/`; For macOS users, find `index.html` in your Typora installation folder, usually located at `<typora_root_path>/Contents/Resources/TypeMark/`. `<typora_root_path>` is the path where Typora is installed, replace it with your real Typora installation path (note that the angle brackets `<` and `>` should also be removed). This folder is called Typora resource folder in the following steps.
-2. Delete the `copilot` folder in Typora resource folder.
-3. For Windows / Linux users, open the previous `window.html` file you found in Typora resource folder with a text editor, and delete `<script src="./copilot/index.js" defer="defer"></script>`; For macOS users, open the previous `index.html` file you found in Typora resource folder with a text editor, and delete `<script src="./copilot/index.js" defer></script>`.
-4. Restart Typora.
 </details>
 
 ## Known Issues
 
-1. Sometimes accepting a suggestion may cause the editor rerendering (i.e. code blocks, math blocks, etc. will be rerendered). This is due to the limitation of Typora's API that I have to force the editor to rerender sometimes to accept a suggestion, and currently I can't find a more safe and efficient way to resolve this issue.
+1. Sometimes accepting a suggestion may cause the editor to rerender (code blocks, math blocks, etc.). This is due to Typora API limitations.
+2. Inline ghost text display may be unstable in certain editor modes. This is an area under active improvement.
 
 ## FAQs
 
-### How to temporarily disable Copilot?
+### How to switch between AI providers?
 
-Just click the Copilot icon in the toolbar, and then click “Disable completions”. You can enable it again by clicking the icon and then clicking “Enable completions”.
-
-### Why use suggestion panel in live preview mode (normal mode) and completion text in source mode by default? Can I change that?
-
-The usage of suggestion panel in live preview mode is intentional. Typora uses a complex mechanism to render the content in live preview mode, it is hard to make completion text work properly in live preview mode.
-
-But it is possible to also use suggestion panel in source mode, you can click the `toolbar icon -> Settings` and toggle the `Use inline completion text in source mode` option.
-
-An option called `Use inline completion text in preview code blocks` is also provided. If you enable this option, the completion text instead of suggestion panel will also be used in code blocks and math blocks in live preview mode. But it is currently not recommended to enable this option, as it is likely to corrupt the editor content or history.
+Click the toolbar icon → **Settings** → **AI Provider** tab → select your provider.
 
 ### Can I use keys other than `Tab` to accept suggestions?
 
-Currently, no. It is technically possible, but currently I don't have enough time to implement it. Maybe I will implement it in the future.
+Currently, no. This is technically possible and may be implemented in the future.
+
+### Which DeepSeek models are supported?
+
+All DeepSeek Chat API models: `deepseek-v4-flash`, `deepseek-v4-pro`, `deepseek-chat`, and `deepseek-reasoner`. You can type any model name in the settings input.
+
+## Acknowledgments
+
+This project is a fork of [Snowflyt/typora-copilot](https://github.com/Snowflyt/typora-copilot) — all credit for the original Typora Copilot plugin architecture goes to [@Snowflyt](https://github.com/Snowflyt).
+
+## License
+
+MIT — see [LICENSE](./LICENSE) for details.

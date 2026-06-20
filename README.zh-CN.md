@@ -1,67 +1,58 @@
-# Typora Copilot
+# Typora Copilot — DeepSeek 版
 
 [English](./README.md) | 简体中文
 
-![Copilot 建议截图](./docs/screenshot.zh-CN.png)
+![Copilot 补全截图](./docs/screenshot.zh-CN.png)
 
-[Typora](https://typora.io/) 的 [GitHub Copilot](https://github.com/features/copilot) & [Copilot Chat](https://docs.github.com/copilot/using-github-copilot/copilot-chat) 插件，支持 Windows、macOS 和 Linux。
+> **基于 [Snowflyt/typora-copilot](https://github.com/Snowflyt/typora-copilot) v0.3.12（MIT 协议）修改** — 新增 DeepSeek 与自定义 OpenAI 兼容提供商支持。
 
-该插件使用 [GitHub Copilot 官方提供的 LSP 服务](https://www.npmjs.com/package/@github/copilot-language-server)，以在编辑器中实时提供建议。
+为 [Typora](https://typora.io/) 提供 AI 驱动的内联补全与对话功能，支持 Windows、macOS 和 Linux。**三大 AI 提供商**可选：GitHub Copilot、DeepSeek，以及任意 OpenAI 兼容 API。
+
+## 提供商对比
+
+| 功能             | GitHub Copilot | DeepSeek         | 自定义提供商   |
+| ---------------- | -------------- | ---------------- | -------------- |
+| 内联补全         | ✅（LSP）      | ✅（FIM API）    | ✅（对话补全） |
+| 对话面板         | ✅             | ✅               | ✅             |
+| 订阅要求         | GitHub Copilot | DeepSeek API Key | 自定义 API Key |
+| 模型选择         | 通过 Copilot   | 可编辑           | 可编辑         |
+| 自定义系统提示词 | ❌             | ✅               | ✅             |
 
 ## 兼容性
 
 > [!NOTE]
->
-> 自 Typora v1.10 起，所有平台都需要安装 [Node.js](https://nodejs.org/zh-cn/download) ≥ 20 才能使用本插件。
->
-> （仅对于使用 Typora 1.9 的 Windows / Linux 用户，无需安装 Node.js。 :wink:）
+> 自 Typora v1.10 起，所有平台均需安装 [Node.js](https://nodejs.org/en/download) ≥ 20。
 
-_\*注：`/` 表示未经过测试。_
-
-| Typora Version | Windows 11 | Ubuntu 24.04 | macOS 15.x |
-| -------------- | ---------- | ------------ | ---------- |
-| 1.12.6         | /          | /            | ✓          |
-| 1.12.4         | ✓          | /            | /          |
-| 1.11.7         | ✓          | /            | ✓          |
-| 1.10.8         | ✓          | ✓            | ✓          |
-| 1.10.6         | ✓          | ✓            | ✓          |
-| 1.9.5          | ✓          | /            | /          |
-| 1.9.4          | /          | /            | ✓          |
-| 1.9.3          | /          | ✓            | /          |
-| 1.8.10         | ✓          | ✓            | ✓          |
-| 1.8.8          | /          | ✓            | /          |
-| 1.8.6          | ✓          | /            | /          |
-| 1.8.5          | ✓          | /            | ✓          |
-| 1.7.6          | ✓          | /            | /          |
-| 1.6.7          | ✓          | /            | /          |
-| 1.5.12         | ✓          | /            | /          |
-| 1.4.8          | ✓          | /            | /          |
-| 1.3.8          | ✓          | /            | /          |
-| 1.2.5          | ✓          | /            | /          |
-| 1.2.3          | ✓          | /            | /          |
-| 1.0.3          | ✓          | /            | /          |
-| 0.11.18-beta   | ✓          | /            | /          |
+| Typora 版本 | Windows 11 | Ubuntu 24.04 | macOS 15.x |
+| ----------- | ---------- | ------------ | ---------- |
+| 1.12.6      | /          | /            | ✓          |
+| 1.12.4      | ✓          | /            | /          |
+| 1.11.7      | ✓          | /            | ✓          |
+| 1.10.8      | ✓          | ✓            | ✓          |
+| 1.10.6      | ✓          | ✓            | ✓          |
+| 1.9.5       | ✓          | /            | /          |
+| 1.8.10      | ✓          | ✓            | ✓          |
 
 ## 前置条件
 
-- 公网连接（对于中国大陆用户，你还需要确保你的网络可以正常访问 GitHub Copilot 服务）。
-- 已激活的 GitHub Copilot 订阅。
+- 需要公网连接。
+- **GitHub Copilot 模式：** 有效的 GitHub Copilot 订阅。
+- **DeepSeek 模式：** [DeepSeek API Key](https://platform.deepseek.com/api_keys)（有免费额度）。
+- **自定义模式：** 任意 OpenAI 兼容 API 的地址与密钥。
 
 ## 安装
 
-**开始任何安装方式之前，请先完全退出 Typora（尤其是 macOS 用户：请使用 <kbd>⌘</kbd>+<kbd>Q</kbd> 退出）。**
+**安装前请确保 Typora 已完全关闭（macOS 用户请使用 <kbd>⌘</kbd>+<kbd>Q</kbd> 退出）。**
 
-### 一键安装（推荐）
-
-你可以直接将以下命令复制粘贴到你的终端中来安装插件：
+### 自动安装（推荐）
 
 <details>
   <summary><strong>Windows</strong></summary>
 
-以**管理员身份**在 PowerShell 中运行以下命令：
+在 PowerShell 中**以管理员身份**运行：
 
 ```powershell
-iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install.ps1" | iex
+iwr -Uri "https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/install.ps1" | iex
 ```
 
 </details>
@@ -69,10 +60,10 @@ iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install
 <details>
   <summary><strong>macOS</strong></summary>
 
-在终端中运行以下命令：
+在终端中运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/install.sh | sudo bash
 ```
 
 </details>
@@ -80,141 +71,116 @@ curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/instal
 <details>
   <summary><strong>Linux</strong></summary>
 
-在终端中运行以下命令：
+在终端中运行：
 
 ```bash
-wget -O - https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/install.sh | sudo bash
+wget -O - https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/install.sh | sudo bash
 ```
 
 </details>
 
-### 脚本安装
-
-<details>
-  <summary><strong>Windows</strong></summary>
-
-对于 Windows 用户，首先从[发布页面](https://github.com/Snowflyt/typora-copilot/releases)下载最新版本并解压。然后定位到你解压的文件夹并在 PowerShell 中**以管理员身份**运行以下命令：
-
-```powershell
-.\bin\install_windows.ps1
-```
-
-如果脚本无法找到 Typora，你可以手动指定 Typora 的路径：
-
-```powershell
-.\bin\install_windows.ps1 -Path "C:\Program Files\Typora\" # 替换为你的 Typora 路径
-# 或使用别名
-# .\bin\install_windows.ps1 -p "C:\Program Files\Typora\" # 替换为你的 Typora 路径
-```
-
-安装过程中，你会看到一条消息记录插件的安装目录。_记住它，在卸载插件时你会需要它。_ 安装完成后，你可以安全地删除刚才解压的文件夹。
-
-</details>
-
-<details>
-  <summary><strong>macOS</strong></summary>
-
-对于 macOS 用户，首先从[发布页面](https://github.com/Snowflyt/typora-copilot/releases)下载最新版本并解压。然后定位到你解压的文件夹并在终端中运行以下命令：
-
-```bash
-sudo bash ./bin/install_macos.sh
-```
-
-如果脚本无法找到 Typora，你可以手动指定 Typora 的路径：
-
-```bash
-sudo bash ./bin/install_macos.sh --path "/Applications/Typora.app/" # 替换为你的 Typora 路径
-# 或使用别名
-# sudo bash ./bin/install_macos.sh -p "/Applications/Typora.app/" # 替换为你的 Typora 路径
-```
-
-安装过程中，你会看到一条消息记录插件的安装目录。_记住它，在卸载插件时你会需要它。_ 安装完成后，你可以安全地删除刚才解压的文件夹。
-
-</details>
-
-<details>
-  <summary><strong>Linux</strong></summary>
-
-对于 Linux 用户，首先从[发布页面](https://github.com/Snowflyt/typora-copilot/releases)下载最新版本并解压。然后定位到你解压的文件夹并在终端中运行以下命令：
-
-```bash
-sudo bash ./bin/install_linux.sh
-```
-
-如果脚本无法找到 Typora，你可以手动指定 Typora 的路径：
-
-```bash
-sudo bash ./bin/install_linux.sh --path "/usr/share/typora/" # 替换为你的 Typora 路径
-# 或使用别名
-# sudo bash ./bin/install_linux.sh -p "/usr/share/typora/" # 替换为你的 Typora 路径
-```
-
-安装过程中，你会看到一条消息记录插件的安装目录。_记住它，在卸载插件时你会需要它。_ 安装完成后，你可以安全地删除刚才解压的文件夹。
-
-</details>
-
-### 手动安装
+### 从源码构建
 
 <details>
   <summary>点击展开</summary>
 
-1. 从[发布页面](https://github.com/Snowflyt/typora-copilot/releases)下载最新版本并解压。
-2. 找到 Typora 安装目录下的 `window.html` 文件，通常位于 `<typora_root_path>/resources/`；对于 macOS 用户，找到 Typora 安装目录下的 `index.html` 文件，通常位于 `<typora_root_path>/Contents/Resources/TypeMark/`。`<typora_root_path>` 是 Typora 的安装路径，替换为你的实际 Typora 安装路径（注意尖括号 `<` 和 `>` 也要删除）。这个文件夹在下面的步骤中被称为 Typora 资源文件夹。
-3. 在 Typora 资源文件夹中创建一个名为 `copilot` 的文件夹。
-4. 将解压后的文件全部复制到 `copilot` 文件夹中。**请确保最终路径为 `copilot/index.js`（而不是 `copilot/typora-copilot/index.js`）。如果出现后者，请将 `typora-copilot` 文件夹内的内容上移一层，使 `index.js` 直接位于 `copilot` 下。**
-5. 对于 Windows / Linux 用户，在 Typora 资源文件夹中用文本编辑器打开 `window.html`，在类似 `<script src="./appsrc/window/frame.js" defer="defer"></script>` 或 `<script src="./app/window/frame.js" defer="defer"></script>` 的代码之后添加 `<script src="./copilot/index.js" defer="defer"></script>`；对于 macOS 用户，在 Typora 资源文件夹中用文本编辑器打开 `index.html`，在类似 `<script src="./appsrc/main.js" aria-hidden="true" defer></script>` 或 `<script src="./app/main.js" aria-hidden="true" defer></script>` 的代码之后添加 `<script src="./copilot/index.js" defer></script>`。
-6. 重启 Typora。
-7. 对于 macOS 用户，如果你在打开 Typora 时被提示“文件已损坏”，你可以按住 Ctrl 点击 Typora，并选择“打开”来打开 Typora.
+```bash
+# 1. 克隆仓库
+git clone https://github.com/KissSheep666/TyporaAI-.git
+cd TyporaAI-
+
+# 2. 安装依赖
+npm install
+
+# 3. 构建插件
+npm run build:dev
+# 构建产物在 dist/ 目录
+
+# 4. 部署到 Typora
+# 首先找到你的 Typora 安装目录：
+#   Windows: C:\Program Files\Typora\
+#   macOS:   /Applications/Typora.app/
+#   Linux:   /usr/share/typora/
+
+# 将 dist/ 复制到 Typora 的 resources/copilot/ 目录
+# Windows 示例（以管理员身份运行）：
+# rm -r "C:\Program Files\Typora\resources\copilot"
+# cp -r dist "C:\Program Files\Typora\resources\copilot"
+
+# Linux 示例：
+# sudo rm -rf /usr/share/typora/resources/copilot
+# sudo cp -r dist /usr/share/typora/resources/copilot
+
+# 5. 在 Typora 中注入插件脚本
+# Windows/Linux：在 <typora>/resources/window.html 中添加：
+#   <script src="./copilot/index.js" defer="defer"></script>
+#   （添加在 frame.js 的 <script> 标签之后）
+#
+# macOS：在 <typora>/Contents/Resources/TypeMark/index.html 中添加：
+#   <script src="./copilot/index.js" defer></script>
+#   （添加在 main.js 的 <script> 标签之后）
+
+# 6. 重启 Typora
+```
 
 </details>
 
-## 初始化
+## 配置
 
-完成安装后，你会在 Typora 工具栏（即界面底部右下角）找到一个 Copilot 图标。点击**它右侧的箭头**，你会看到一个下拉菜单，然后点击“登录以认证 Copilot”。
+### GitHub Copilot 模式
+
+安装完成后，点击 Typora 工具栏右下角的 Copilot 图标旁的**箭头按钮**，然后点击「登录以验证 Copilot」。
 
 ![Copilot 图标](./docs/toolbar-icon.zh-CN.png)
 
-> [!CAUTION]
->
-> 如果你在中国大陆，登录这一步很可能因为网络原因失败。如果你发现点击按钮后很长时间没有反应，尝试按 Shift+F12（Windows 或 Linux）或在帮助菜单中打开“Enable Debugging”并在任意位置右键选择检查元素（macOS），以打开调试工具，定位到“控制台”或“Console”标签页，将过滤级别调整为“详细”或“Verbose”。然后查看控制台中打印的日志信息，以检查是否存在网络问题。
->
-> 如果你看到一条来自“SignInInitiate”的红色错误信息，其中包含“ETIMEOUT”这样的内容，说明这一步因网络原因失败了。尝试调整你的代理软件设置，打开类似“增强代理”或“TUN 模式”的选项，重启 Typora 再进行尝试；或者，对于 Windows 用户可以使用使用 Proxifier 配置全局代理，对于 macOS / Linux 用户可以使用 Proxychains 打开 Typora，再进行尝试。
+按提示完成认证。
 
-按照提示进行身份验证：
+### DeepSeek / 自定义模式
 
-1. 用户代码会自动复制到你的剪贴板。
-2. 遵照弹出提示上的说明，打开 GitHub 身份验证页面。
-3. 将用户代码粘贴到 GitHub 身份验证页面中。
-4. 返回 Typora 并在对话框中按下“确定”按钮。
-5. 如果你在**几秒钟后**看到一个“已登录 GitHub Copilot”对话框，Copilot 插件应该就可以正常工作了（在中国大陆，你可能需要等待更长的时间）。
+1. 点击工具栏 Copilot 图标 → **设置**。
+2. 在 **AI 提供商** 标签页中选择 **DeepSeek** 或 **自定义大模型**。
+3. 填入 API Key 并配置模型名称。
 
-## Copilot Chat
+| 设置项               | 说明                                                                             |
+| -------------------- | -------------------------------------------------------------------------------- |
+| **DeepSeek API Key** | 从 [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys) 获取 |
+| **DeepSeek 模型**    | 默认：`deepseek-v4-flash`。也可用：`deepseek-v4-pro`、`deepseek-chat`            |
+| **自定义 API Base**  | OpenAI 兼容接口地址（如 `https://api.openai.com/v1`）                            |
+| **自定义 API Key**   | 对应提供商的 API 密钥                                                            |
+| **自定义模型**       | 提供商支持的模型名称                                                             |
 
-点击工具栏中的 Copilot 图标将切换 Copilot Chat 面板。你可以使用它与 Copilot 聊天，当前文档和之前的聊天记录将作为上下文发送给 Copilot。
+> **注意：** API Key 仅存储在 Typora 的 localStorage 中，不会发送到除对应 API 端点之外的任何地方。
 
-确保在使用 Copilot Chat 面板之前已登录 Copilot。登录后，重启 Typora 以确保 Copilot Chat 面板正常工作。
+### 自定义对话风格（人设）
 
-你可以：
+你可以为对话面板创建命名的系统提示词：
 
-- 从面板顶部的下拉列表中选择、创建、编辑聊天标题，或删除聊天会话。
-- 点击“发送”按钮或按下 <kbd>Enter</kbd> 键发送消息。（你可以使用 <kbd>Shift</kbd> + <kbd>Enter</kbd> 或 <kbd>Ctrl</kbd> + <kbd>Enter</kbd> 插入新行。）
-- 点击“停止”按钮停止当前请求。
-- 从面板底部的下拉列表中选择提示样式。
-- 从面板底部的下拉列表中选择要使用的模型。
+1. 打开 **设置 → AI 提供商** 标签页。
+2. 在「自定义对话风格」下方，点击 **+ 新建风格**。
+3. 输入名称与系统提示词内容。
+4. 点击 **保存**。
+
+在对话面板中从下拉框选择你创建的风格即可使用。
+
+## 对话面板
+
+点击工具栏中的 Copilot 图标可切换对话面板。当前文档和对话历史将作为上下文发送。
+
+- 从顶部的下拉框中选择、创建、编辑或删除对话会话。
+- 按 <kbd>Enter</kbd> 发送，<kbd>Shift</kbd>+<kbd>Enter</kbd> 换行。
+- 点击 **停止** 可取消当前请求。
+- 从底部的下拉框中选择对话风格。
+- 选择你想使用的模型。
 
 ## 卸载
 
-### 一键卸载（推荐）
-
-要卸载插件，你可以直接将以下命令复制粘贴到你的终端中：
+### 自动卸载（推荐）
 
 <details>
   <summary><strong>Windows</strong></summary>
 
-以**管理员身份**在 PowerShell 中运行以下命令：
-
 ```powershell
-iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uninstall_windows.ps1" | iex
+iwr -Uri "https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/bin/uninstall_windows.ps1" | iex
 ```
 
 </details>
@@ -222,10 +188,8 @@ iwr -Uri "https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uni
 <details>
   <summary><strong>macOS</strong></summary>
 
-在终端中运行以下命令：
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uninstall_macos.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/bin/uninstall_macos.sh | sudo bash
 ```
 
 </details>
@@ -233,84 +197,35 @@ curl -fsSL https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/un
 <details>
   <summary><strong>Linux</strong></summary>
 
-在终端中运行以下命令：
-
 ```bash
-wget -O - https://raw.githubusercontent.com/Snowflyt/typora-copilot/main/bin/uninstall_linux.sh | sudo bash
+wget -O - https://raw.githubusercontent.com/KissSheep666/TyporaAI-/main/bin/uninstall_linux.sh | sudo bash
 ```
 
-</details>
-
-### 脚本卸载
-
-<details>
-  <summary><strong>Windows</strong></summary>
-
-对于 Windows 用户，定位到插件安装目录并在 PowerShell 中**以管理员身份**运行以下命令：
-
-```powershell
-.\bin\uninstall_windows.ps1
-```
-
-和安装时一样，如果脚本无法找到 Typora，你可以手动通过 `-Path` 或 `-p` 参数指定 Typora 的路径。
-
-</details>
-
-<details>
-  <summary><strong>macOS</strong></summary>
-
-对于 macOS 用户，定位到插件安装目录并在终端中运行以下命令：
-
-```bash
-sudo bash ./bin/uninstall_macos.sh
-```
-
-和安装时一样，如果脚本无法找到 Typora，你可以手动通过 `--path` 或 `-p` 参数指定 Typora 的路径。
-
-</details>
-
-<details>
-  <summary><strong>Linux</strong></summary>
-
-对于 Linux 用户，定位到插件安装目录并在终端中运行以下命令：
-
-```bash
-sudo bash ./bin/uninstall_linux.sh
-```
-
-和安装时一样，如果脚本无法找到 Typora，你可以手动通过 `--path` 或 `-p` 参数指定 Typora 的路径。
-
-</details>
-
-### 手动卸载
-
-<details>
-  <summary>点击展开</summary>
-
-1. 找到 Typora 安装目录下的 `window.html` 文件，通常位于 `<typora_root_path>/resources/`；对于 macOS 用户，找到 Typora 安装目录下的 `index.html` 文件，通常位于 `<typora_root_path>/Contents/Resources/TypeMark/`. `<typora_root_path>` 是 Typora 的安装路径，替换为你的实际 Typora 安装路径（注意尖括号 `<` 和 `>` 也要删除）。这个文件夹在下面的步骤中被称为 Typora 资源文件夹。
-2. 删除 Typora 资源文件夹中的 `copilot` 文件夹。
-3. 对于 Windows / Linux 用户，在 Typora 资源文件夹中用文本编辑器打开 `window.html`，删除 `<script src="./copilot/index.js" defer="defer"></script>`；对于 macOS 用户，在 Typora 资源文件夹中用文本编辑器打开 `index.html`，删除 `<script src="./copilot/index.js" defer></script>`.
-4. 重启 Typora.
 </details>
 
 ## 已知问题
 
-1. 有时接受建议可能会导致编辑器重新渲染（即代码块、数学块等将重新渲染）。这是由于 Typora API 的限制，我必须有时强制编辑器重新渲染以接受建议，目前我找不到更安全和更高效的方法来解决这个问题。
+1. 有时接受补全会导致编辑器重新渲染（代码块、数学公式等），这是 Typora API 的限制。
+2. 内联幽灵文字在某些编辑器模式下显示可能不稳定，正在持续改进中。
 
 ## 常见问题
 
-### 如何临时禁用 Copilot？
+### 如何切换 AI 提供商？
 
-点击工具栏中的 Copilot 图标，然后点击“禁用建议”即可。你可以通过点击图标然后点击“启用建议”来重新启用它。
+点击工具栏图标 → **设置** → **AI 提供商** 标签页 → 选择提供商。
 
-### 为什么默认在实时预览模式（正常模式）下使用建议面板，在源代码模式下使用补全文本？我能修改这一配置吗？
+### 可以使用 Tab 以外的按键接受建议吗？
 
-在实时预览模式下使用建议面板是有意的。Typora 在实时预览模式下的渲染机制很复杂，很难使补全文本在实时预览模式下正常工作。
+目前不支持，技术上可行，未来可能实现。
 
-不过对于源代码模式，你可以通过点击 `工具栏图标 -> 设置` 并切换 `在源代码模式下使用内联补全文本` 选项来在源代码模式下使用建议面板。
+### 支持哪些 DeepSeek 模型？
 
-设置中还提供了一个名为 `在预览模式代码块中使用内联补全文本` 的选项。如果你启用了这个选项，补全文本将会在实时预览模式下的代码块和数学块中使用。但目前不建议启用这个选项，因为它很可能会破坏编辑器内容或历史记录。
+支持所有 DeepSeek Chat API 模型：`deepseek-v4-flash`、`deepseek-v4-pro`、`deepseek-chat`、`deepseek-reasoner`。你可以在设置输入框中输入任意模型名。
 
-### 我可以使用除 `Tab` 键以外的按键来接受建议吗？
+## 致谢
 
-目前不行。这在技术上是可行的，但目前我没什么时间实现它。也许我将来会实现它。
+本项目基于 [Snowflyt/typora-copilot](https://github.com/Snowflyt/typora-copilot) 修改 — 原始 Typora Copilot 插件架构的所有功劳归于 [@Snowflyt](https://github.com/Snowflyt)。
+
+## 许可证
+
+MIT — 详见 [LICENSE](./LICENSE) 文件。
